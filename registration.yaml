@@ -1,0 +1,58 @@
+# gTemplate-wp Registration Configuration (Template)
+#
+# Copy this file to one of:
+#   1. {WordPress root}/wp-config-geodineum.yaml (highest priority)
+#   2. {theme dir}/registration.local.yaml (gitignored, per-site)
+#
+# Or let the auto-detection system derive values from your domain.
+#
+# See CLAUDE.md for full documentation.
+
+version: "1.0.0"
+
+# Site identification (auto-detected from domain if omitted)
+# site_id: staging_nierto_com
+
+service:
+  type: wordpress-site
+  tier: service
+  update_mode: upsert
+
+# 19 semantic dimensions (Layer 1-8)
+capabilities:
+  protocol: http_rest
+  native_format: json
+  contract_stability: stable
+  clearance_required: public
+  auth_method: session_cookie
+  data_sensitivity: internal
+  service_scope: client_facing
+  domain_primary: content
+  specialization: generalist
+  throughput_tier: professional
+  latency_class: responsive
+  reliability_tier: high
+  pipeline_stage: deliver
+  execution_priority: normal
+
+metadata:
+  type: wordpress-site
+  # theme: auto-detected from active theme
+  # environment: auto-detected from WP_ENVIRONMENT_TYPE or domain
+
+# ValKey credentials (auto-detected if omitted)
+# valkey:
+#   user: gnode_client_{site_id}
+#   password_file: /opt/gNode/.gnode/valkey_client_{site_id}.password
+
+# Manager configs (paths relative to theme directory)
+managers:
+  SecurityManager: config/managers/SecurityManager.yaml
+  CacheManager: config/managers/CacheManager.yaml
+  SEOManager: config/managers/SEOManager.yaml
+  OptimizationManager: config/managers/OptimizationManager.yaml
+  ManifestManager: config/managers/ManifestManager.yaml
+  FormatManager: config/managers/FormatManager.yaml
+  ErrorManager: config/managers/ErrorManager.yaml
+  APIManager: config/managers/APIManager.yaml
+  TemplateRenderer: config/managers/TemplateRenderer.yaml

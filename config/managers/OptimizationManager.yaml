@@ -1,0 +1,55 @@
+# OptimizationManager Configuration for gCube
+# ==========================================
+# Performance optimization, asset management, resource hints
+
+enabled: true
+debug: false
+
+# Script Optimization
+scripts:
+  defer: true
+  async_hint: true
+  exclude:
+    - jquery
+    - cube-controls
+
+# Style Optimization
+styles:
+  preload_critical: true
+  remove_unused: false  # Conservative - may break CSS
+  exclude:
+    - cube.css
+
+# Resource Hints
+resource_hints:
+  enabled: true
+  preconnect:
+    - https://fonts.googleapis.com
+    - https://fonts.gstatic.com
+  dns_prefetch:
+    - https://www.googletagmanager.com
+
+# WordPress Bloat Removal
+wordpress:
+  remove_emojis: true
+  remove_rest_api_link: false  # Keep for gCore REST
+  remove_rsd_link: true
+  remove_wlwmanifest: true
+  remove_shortlink: true
+  remove_generator: true
+  remove_feeds: false  # Keep RSS feeds
+  disable_xmlrpc: true
+  limit_revisions: 5
+
+# Security Headers (via PHP - Apache/Nginx preferred)
+headers:
+  enabled: true
+  x_frame_options: SAMEORIGIN
+  x_content_type_options: nosniff
+  x_xss_protection: "1; mode=block"
+  referrer_policy: strict-origin-when-cross-origin
+
+# Cache settings
+cache:
+  ttl: 3600  # 1 hour
+  group: optimization

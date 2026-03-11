@@ -1,0 +1,55 @@
+# SEOManager Configuration for gCube
+# ==================================
+# Meta tags, structured data, sitemaps, and AI optimization
+
+enabled: true
+debug: false
+
+# Core SEO Features
+meta:
+  auto_generate: true
+  max_title_length: 60
+  max_description_length: 160
+
+# Structured Data (Schema.org)
+structured_data:
+  enabled: true
+  types:
+    - WebSite
+    - WebPage
+    - Organization
+
+# Sitemap
+sitemap:
+  enabled: true
+  max_urls: 50000
+  change_freq: weekly
+  priority:
+    pages: 0.8
+    posts: 0.6
+    archives: 0.4
+
+# Robots.txt
+robots:
+  enabled: true
+  disallow:
+    - /wp-admin/
+    - /wp-includes/
+    - /xmlrpc.php
+
+# GEO/AIO - Generative Engine Optimization / AI Optimization
+geo_aio:
+  enabled: true
+  llms_txt:
+    enabled: true
+    path: /llms.txt
+    sections:
+      - about
+      - services
+      - contact
+
+# Cache settings
+cache:
+  enabled: true
+  ttl: 86400  # 24 hours
+  group: seo

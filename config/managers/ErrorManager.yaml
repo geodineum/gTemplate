@@ -1,0 +1,71 @@
+# ErrorManager Configuration for gCube (staging.nierto.com)
+# Dual logging: ValKey (fast queries) + File (dev troubleshooting)
+
+enabled: true
+implementation: standalone
+
+adapters:
+  logger:
+    standalone: gCore\Modules\Core\Adapters\Logging\StandaloneErrorLogger
+  notifier:
+    standalone: gCore\Modules\Core\Adapters\Capability\StandaloneErrorNotifier
+  storage:
+    standalone: gCore\Modules\Core\Adapters\Storage\ValKeyStorage
+
+config:
+  debug: false
+  log_level: warning  # warning for staging (info for dev, error for production)
+  
+  # Dual logging strategy
+  logging:
+    # File logging for dev team troubleshooting
+    file:
+      enabled: true
+      path: /home/august/gh/gCore/logs/gcube-error.log  # Dev-accessible location
+      rotation_size: 5242880  # 5MB
+      rotation_count: 5  # Keep 5 rotated files
+      format: "[{timestamp}] [{level}] [{category}] {message} {context}"
+      include_trace: true
+      
+    # ValKey logging for fast queries and dashboards
+    valkey:
+      enabled: true
+      prefix: "{staging_nierto_com}:error:"  # Multi-tenant isolation
+      ttl: 2592000  # 30 days
+      max_errors_per_hash: 1000
+      include_trace: true
+      
+    # Optional: Syslog for system-wide logging
+    syslog:
+      enabled: false
+      facility: "LOG_USER"
+      ident: "gcube"
+  
+  log_retention_days: 30
+  notify_admin: true
+  error_categories: [system, security, cache, gnode, template, api, manager]
+  compression_level: 9  # File compression when rotating
+  
+  reporting:
+    level: 32767  # E_ALL
+    display: false  # Never display errors to users
+    admin_notification: true
+  
+  notifications:
+    email: "tech@nierto.com"  # gCube staging alerts
+    email_threshold: CRITICAL  # Only critical errors email
+    rate_limit_window: 3600  # 1 hour
+    rate_limit_threshold: 50  # Max 50 emails per hour
+  
+  # Error context collection
+  context:
+    collect_request_data: true  # $_SERVER, $_GET, $_POST (sanitized)
+    collect_user_data: true     # Current user ID, roles
+    collect_stack_trace: true   # Full stack trace
+    max_context_size: 10240     # 10KB max context per error
+    
+  # Performance
+  async_logging: false  # Synchronous for debugging (async for production)
+  batch_writes: true    # Batch ValKey writes for efficiency
+  batch_size: 10
+  batch_interval: 5     # Flush every 5 seconds

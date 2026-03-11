@@ -1,0 +1,22 @@
+/*
+Theme Name: gTemplate-wp
+Theme URI: https://github.com/geodineum/gTemplate-wp
+Description: Geodineum parent theme for WordPress. Provides the complete operational backbone — gCore framework integration, gNode connectivity, 3-tier rendering, REST API, customizer, CLI, and all service integrations. Child themes define only visual identity, geometry, and layout HTML. Works standalone with demo content or as a parent for gCube, gTesseract, and custom child themes.
+Version: 1.0.0
+Requires at least: 5.2
+Tested up to: 6.7
+Requires PHP: 7.4
+Author: Geodineum
+Author URI: https://geodineum.com
+License: MIT
+Text Domain: gtemplate
+Tags: custom-template, framework, gcore, gnode, performance, htmx, geometric-service-mesh, parent-theme
+
+gTemplate-wp Parent Theme
+Built with: gCore framework, gNode (Geometric Service Node), Tera templates, HTMX
+Architecture: Platform-aware, multi-tenant, O(1) service discovery
+Child themes: gCube (3D cube), gTesseract (4D hypercube), custom geometries
+*/
+
+/* Theme styles are loaded from assets/css/ */
+/* Child themes provide geometry-specific CSS */

@@ -1,0 +1,27 @@
+# Site-specific Geodineum configuration
+#
+# Copy to your WordPress root as: wp-config-geodineum.yaml
+# This file is gitignored and takes highest priority.
+
+version: "1.0.0"
+
+# REQUIRED: Your site identifier (used for ValKey namespacing)
+site_id: your_domain_com
+
+service:
+  type: wordpress-site
+  tier: service
+  update_mode: upsert
+
+metadata:
+  type: wordpress-site
+  environment: production  # testing | staging | acceptance | production
+
+# ValKey credentials
+valkey:
+  user: gnode_client_your_domain_com
+  password_file: /opt/gNode/.gnode/valkey_client_your_domain_com.password
+
+# Optional: Environment-specific viewkey for access control
+# security:
+#   viewkey: your-secret-viewkey-here

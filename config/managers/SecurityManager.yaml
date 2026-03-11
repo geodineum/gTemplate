@@ -1,0 +1,90 @@
+# SecurityManager Configuration for gCube (staging.nierto.com)
+# Based on gCore defaults with staging-specific adjustments
+
+enabled: true
+implementation: standalone
+
+adapters:
+  capability:
+    standalone: gCore\Modules\Core\Adapters\Security\StandaloneCapabilityChecker
+  storage:
+    standalone: gCore\Modules\Core\Adapters\Shared\ValKeyStorage
+
+# All security traits enabled for staging (same as production)
+traits:
+  XSSPreventionTrait:
+    enabled: true
+  HardwareSecurityTrait:
+    enabled: true
+  SecurityRulesTrait:
+    enabled: true
+  HeaderSecurityTrait:
+    enabled: true
+  WordPressIntegrationTrait:
+    enabled: true
+  AdvancedAuthenticationTrait:
+    enabled: true
+  AdvancedCryptoTrait:
+    enabled: true
+  AdvancedRulesTrait:
+    enabled: true
+  AlertingTrait:
+    enabled: true
+  CryptoTrait:
+    enabled: true
+  SanitationTrait:
+    enabled: true
+  SecurityMonitoringTrait:
+    enabled: true
+
+config:
+  debug: false  # Keep false even for staging
+  
+  protocol:
+    type: TLSv1.3
+    min_version: TLSv1.2
+    cipher_list: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
+    certificate_verification: true
+    disable_compression: true
+  
+  firewall:
+    enabled: true
+    mode: "deny"
+    allowed_ips: []  # Add specific IPs if needed
+    blocked_ips: []
+    country_blocking: 
+      enabled: false
+      blocked_countries: []
+    rate_limiting: true
+  
+  updates:
+    auto_update: false  # Manual control for staging
+    security_patches_only: false
+    notification_email: "tech@nierto.com"  # gCube staging notifications
+  
+  alerts:
+    high_priority:
+      channels: ["email", "dashboard", "log"]
+      recipients: ["tech@nierto.com"]
+    medium_priority:
+      channels: ["dashboard", "log"]
+      recipients: []
+    low_priority:
+      channels: ["log"]
+      recipients: []
+  
+  audit:
+    enabled: true
+    log_level: "detailed"
+    retention_days: 90
+  
+  premium_features:
+    quantum_resistant:
+      enabled: false
+      license_key: null
+    advancedAnalytics:
+      enabled: false
+      license_key: null
+    customAlerts:
+      enabled: false
+      license_key: null

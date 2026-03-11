@@ -1,0 +1,57 @@
+# TemplateRenderer Configuration for gCube (staging.nierto.com)
+# gNode-powered Tera template rendering for 3D cube faces
+
+enabled: true
+implementation: gnode  # Uses gNode daemon for Tera template processing
+requires:
+  - gnode_client
+
+config:
+  debug: false
+  use_gnode: true
+  default_ttl: 3600  # 1 hour cache for rendered templates
+  cache_output: true
+  timeout_ms: 5000
+  max_recursion_depth: 10
+
+  rendering:
+    auto_escape: true  # XSS prevention
+    strict_variables: false  # Allow undefined variables (render as empty)
+    sandbox_enabled: true  # Security sandbox
+    max_render_time_ms: 5000  # 5 second timeout
+    max_output_size: 1048576  # 1MB max output
+
+  discovery:
+    enabled: true
+    similarity_threshold: 0.3
+
+  dependencies:
+    track_dependencies: true
+    enable_transitive_invalidation: true  # Clear dependent templates on change
+    cycle_detection: true  # Prevent infinite template loops
+    max_dependencies: 100
+
+  htmx:
+    enabled: true  # CRITICAL for gCube progressive enhancement
+    default_cache_control: "public, max-age=31536000, immutable"
+    generate_etag: true
+
+  security:
+    allow_path_traversal: false  # Prevent ../../../etc/passwd attacks
+    max_template_size: 524288  # 512KB max template size
+    validate_tera_syntax: true
+
+  metrics:
+    track_performance: true
+    log_slow_renders: true
+    slow_threshold_ms: 100  # Log renders > 100ms
+    track_cache_efficiency: true
+
+  # gCube-specific: 3D cube face templates
+  cube_faces:
+    one: "cube/face-one.html.tera"      # Top face
+    two: "cube/face-two.html.tera"      # Front face (home)
+    three: "cube/face-three.html.tera"  # Right face
+    four: "cube/face-four.html.tera"    # Back face
+    five: "cube/face-five.html.tera"    # Left face
+    six: "cube/face-six.html.tera"      # Bottom face

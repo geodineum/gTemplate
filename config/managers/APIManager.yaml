@@ -1,0 +1,120 @@
+# APIManager Configuration for gCube (staging.nierto.com)
+# REST API with rate limiting and caching
+
+enabled: true
+api_version: '1.0'
+namespace: 'gcube/v1'  # gCube-specific namespace
+debug: false  # Keep false even for staging
+
+# Cache configuration
+cache_enabled: true
+cache_ttl: 1800  # 30 minutes for staging (shorter than production)
+
+# Rate limiting (more relaxed for staging)
+rate_limiting: true
+rate_limit_window: 60
+rate_limit_max: 100  # 100 req/min for staging (vs 60 for prod)
+batch_size_limit: 100
+
+# Connection pool
+connection_pool_size: 5
+adaptive_backoff: true
+
+# Features
+metrics_enabled: true
+validation_enabled: true
+enable_websocket: false  # Disabled for now
+enable_admin_ui: true
+
+# Default TTLs by category
+cache_ttls:
+  content: 1800     # 30 minutes (shorter for staging)
+  meta: 900         # 15 minutes
+  query: 300        # 5 minutes
+  status: 60        # 1 minute
+  default: 1800     # 30 minutes
+
+# Cache groups
+cache_groups:
+  content: 'content'
+  meta: 'meta'
+  query: 'query' 
+  status: 'status'
+  default: 'api'
+
+# Rate limits by endpoint
+rate_limits:
+  content: 
+    max: 100
+    window: 60
+  meta:
+    max: 50
+    window: 60
+  query:
+    max: 30
+    window: 60
+  batch:
+    max: 10
+    window: 60
+  default:
+    max: 100
+    window: 60
+
+# Rate limit exclusions
+rate_limit_exclusions:
+  ips:
+    - '127.0.0.1'
+    - '::1'
+  roles:
+    - 'administrator'
+  capabilities:
+    - 'manage_options'
+
+# Dynamic endpoints
+dynamic_endpoints:
+  health:
+    route: '/health'
+    methods: ['GET']
+    permission_callback: '__return_true'
+    handler:
+      type: 'callback'
+      callback: 'getHealthStatus'
+  
+  gnode:
+    route: '/gnode'
+    methods: ['GET', 'POST']
+    permission_callback: 'is_user_logged_in'
+    handler:
+      type: 'callback'
+      callback: 'proxyTogNode'
+
+# WebSocket channels (disabled but configured for future)
+websocket_channels:
+  notifications:
+    description: 'System notifications'
+    public: false
+  content:
+    description: 'Content updates'
+    public: true
+  metrics:
+    description: 'System metrics'
+    public: false
+
+# Trait configuration
+traits:
+  EndpointManagerTrait:
+    enabled: true
+  RequestProcessorTrait:
+    enabled: true
+  ResponseCacheTrait:
+    enabled: true
+  RateLimiterTrait:
+    enabled: true
+  WebSocketTrait:
+    enabled: false
+  AuthenticationTrait:
+    enabled: true
+  ValidationTrait:
+    enabled: true
+  MetricsCollectorTrait:
+    enabled: true

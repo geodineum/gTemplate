@@ -1,0 +1,52 @@
+# CacheManager Configuration for gCube (staging.nierto.com)
+# ValKey-based caching with gNode integration
+
+enabled: true
+implementation: standalone
+
+adapters:
+  strategy:
+    standalone: gCore\Modules\Core\Adapters\Storage\ValKeyStorage
+
+config:
+  debug: false
+  prefix: "{staging_nierto_com}:cache:"  # Site-specific prefix for multi-tenant isolation
+  default_ttl: 3600  # 1 hour
+  
+  connection:
+    host: 127.0.0.1
+    port: 47445  # Standard ValKey port (DO NOT hardcode 6379!)
+    timeout: 0.5
+    retry_interval: 100
+    prefix: "{staging_nierto_com}:cache:"
+    auth:
+      user: gnode_client  # TODO: Change to gnode_client_staging_nierto_com in Phase 4
+      password: null  # Read from /opt/.gnode/valkey_client.password
+    database: 0
+    persistent: true
+    read_timeout: -1
+  
+  serialization:
+    serializer: igbinary  # Binary serialization (faster than PHP serialize)
+    compression: true
+    compression_threshold: 1024  # Compress data > 1KB
+    compression_level: 1  # Fast compression (1-9, 1=fastest)
+  
+  scripts:
+    retry_attempts: 3
+    retry_delay: 100
+  
+  distributed:
+    transaction_timeout: 30
+    lock_timeout: 30
+    lock_retry_count: 3
+    lock_retry_delay: 100
+  
+  # gCube-specific cache groups
+  cache_groups:
+    page: 3600        # Full page cache (1 hour)
+    fragment: 1800    # HTML fragments (30 min)
+    template: 7200    # Tera templates (2 hours)
+    api: 300          # API responses (5 min)
+    gnode: 600          # gNode responses (10 min)
+    cube_face: 3600   # 3D cube face content (1 hour)

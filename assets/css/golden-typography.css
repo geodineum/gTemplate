@@ -1,0 +1,651 @@
+/**
+ * Golden Typography System
+ * Mathematical elegance for maximum visual impact
+ *
+ * Based on:
+ * - Golden Ratio (φ): 1.618033988749895
+ * - Fibonacci Sequence: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89...
+ * - Golden Angle: 137.5077640500378°
+ *
+ * "Communication is 80% non-verbal" - Let the ratios speak.
+ *
+ * @package gTesseract
+ * @version 1.0.0
+ */
+
+/* ==========================================================================
+   GOLDEN CONSTANTS & MODULAR SCALE
+   ========================================================================== */
+
+:root {
+    /* === GOLDEN MATHEMATICAL CONSTANTS === */
+    --phi: 1.618033988749895;
+    --phi-squared: 2.618033988749895;
+    --phi-cubed: 4.23606797749979;
+    --phi-inverse: 0.618033988749895;
+    --phi-sqrt: 1.272019649514069;
+    --golden-angle: 137.5077640500378deg;
+
+    /* === GOLDEN MODULAR TYPE SCALE ===
+     * Each step multiplies by φ (1.618) or its derivatives
+     * Base: 1rem = 16px (browser default)
+     *
+     * Scale visualization:
+     * ────────────────────────────────────────────────
+     * 6xl │████████████████████████████████│ 6.854rem (φ⁴)
+     * 5xl │██████████████████████████│      5.236rem
+     * 4xl │████████████████████│            4.236rem (φ³)
+     * 3xl │████████████████│                3.236rem
+     * 2xl │██████████████│                  2.618rem (φ²)
+     * xl  │██████████│                      1.618rem (φ)
+     * lg  │████████│                        1.272rem (√φ)
+     * base│██████│                          1.000rem
+     * sm  │████│                            0.786rem (1/√φ)
+     * xs  │███│                             0.618rem (1/φ)
+     * 2xs │██│                              0.486rem
+     * ────────────────────────────────────────────────
+     */
+
+    --text-2xs: 0.486rem;     /* φ^-1.5 = ~7.8px - micro labels */
+    --text-xs: 0.618rem;      /* 1/φ = ~9.9px - captions, footnotes */
+    --text-sm: 0.786rem;      /* 1/√φ = ~12.6px - small text */
+    --text-base: 1rem;        /* base = 16px - body copy */
+    --text-lg: 1.272rem;      /* √φ = ~20.4px - lead paragraphs */
+    --text-xl: 1.618rem;      /* φ = ~25.9px - section titles */
+    --text-2xl: 2.058rem;     /* φ^1.5 = ~32.9px - subsections */
+    --text-3xl: 2.618rem;     /* φ² = ~41.9px - page titles */
+    --text-4xl: 4.236rem;     /* φ³ = ~67.8px - hero headlines */
+    --text-5xl: 5.236rem;     /* φ³×1.236 = ~83.8px - display */
+    --text-6xl: 6.854rem;     /* φ⁴ = ~109.7px - massive display */
+
+    /* === GOLDEN LINE HEIGHTS ===
+     * Vertical rhythm based on φ
+     * Tighter for headings (less text per line)
+     * Looser for body (more text per line)
+     */
+    --leading-none: 1;
+    --leading-tight: 1.1;           /* Display headings */
+    --leading-snug: 1.272;          /* √φ - headings */
+    --leading-normal: 1.618;        /* φ - body text (THE golden ratio) */
+    --leading-relaxed: 1.854;       /* φ×1.146 - spacious body */
+    --leading-loose: 2.058;         /* φ^1.5 - very open text */
+
+    /* === FIBONACCI SPACING SCALE ===
+     * 8px base unit, Fibonacci multipliers
+     * Creates naturally pleasing visual rhythm
+     *
+     * Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144...
+     */
+    --space-0: 0;
+    --space-1: 0.0625rem;     /* 1px */
+    --space-2: 0.125rem;      /* 2px */
+    --space-3: 0.1875rem;     /* 3px */
+    --space-5: 0.3125rem;     /* 5px */
+    --space-8: 0.5rem;        /* 8px - BASE UNIT */
+    --space-13: 0.8125rem;    /* 13px */
+    --space-21: 1.3125rem;    /* 21px */
+    --space-34: 2.125rem;     /* 34px */
+    --space-55: 3.4375rem;    /* 55px */
+    --space-89: 5.5625rem;    /* 89px */
+    --space-144: 9rem;        /* 144px */
+
+    /* === GOLDEN MEASURE (Line Length) ===
+     * Optimal reading: 45-75 characters
+     * Golden sweet spot: ~66 characters
+     * Based on research + golden ratio aesthetics
+     */
+    --measure-narrow: 45ch;   /* Tight columns, captions */
+    --measure-medium: 55ch;   /* Comfortable reading */
+    --measure-golden: 66ch;   /* THE optimal line length */
+    --measure-wide: 75ch;     /* Maximum comfortable */
+
+    /* === GOLDEN LETTER SPACING ===
+     * Tracking adjustments for different sizes
+     * Larger text needs tighter tracking
+     * Smaller text needs looser tracking
+     */
+    --tracking-tighter: -0.05em;
+    --tracking-tight: -0.025em;
+    --tracking-normal: 0;
+    --tracking-wide: 0.025em;
+    --tracking-wider: 0.05em;
+    --tracking-widest: 0.1em;
+
+    /* === GOLDEN FONT WEIGHTS ===
+     * Strategic weight usage for hierarchy
+     */
+    --weight-light: 300;
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    /* === GOLDEN PARAGRAPH RHYTHM ===
+     * Vertical spacing between text blocks
+     */
+    --paragraph-spacing: var(--space-21);      /* 21px between paragraphs */
+    --section-spacing: var(--space-55);        /* 55px between sections */
+    --block-spacing: var(--space-34);          /* 34px between content blocks */
+}
+
+/* ==========================================================================
+   RESPONSIVE GOLDEN SCALE
+   Fluid typography that maintains golden proportions
+   ========================================================================== */
+
+@media (max-width: 480px) {
+    :root {
+        /* Scale down on mobile, maintain ratios */
+        --text-base: 0.9375rem;   /* 15px base on mobile */
+        --text-lg: 1.193rem;
+        --text-xl: 1.518rem;
+        --text-2xl: 1.929rem;
+        --text-3xl: 2.454rem;
+        --text-4xl: 3.971rem;
+
+        /* Tighter spacing on mobile */
+        --section-spacing: var(--space-34);
+        --block-spacing: var(--space-21);
+    }
+}
+
+@media (min-width: 1200px) {
+    :root {
+        /* Scale up on large screens */
+        --text-base: 1.0625rem;   /* 17px base on large screens */
+        --text-lg: 1.352rem;
+        --text-xl: 1.72rem;
+        --text-2xl: 2.187rem;
+        --text-3xl: 2.782rem;
+        --text-4xl: 4.501rem;
+    }
+}
+
+/* ==========================================================================
+   GOLDEN TYPOGRAPHY BASE STYLES
+   ========================================================================== */
+
+/* Body text - the foundation */
+.golden-body,
+.cell-body,
+.face-body,
+.post-content {
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);  /* 1.618 - THE golden ratio */
+    letter-spacing: var(--tracking-normal);
+    font-weight: var(--weight-normal);
+    max-width: var(--measure-golden);    /* 66ch optimal line length */
+}
+
+/* Headings - hierarchical scale */
+.golden-h1,
+h1.cell-title,
+h1.face-title,
+h1.post-title {
+    font-size: var(--text-4xl);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--weight-bold);
+    margin-bottom: var(--space-34);
+}
+
+.golden-h2,
+h2 {
+    font-size: var(--text-3xl);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--weight-semibold);
+    margin-top: var(--space-55);
+    margin-bottom: var(--space-21);
+}
+
+.golden-h3,
+h3 {
+    font-size: var(--text-2xl);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-normal);
+    font-weight: var(--weight-semibold);
+    margin-top: var(--space-34);
+    margin-bottom: var(--space-13);
+}
+
+.golden-h4,
+h4 {
+    font-size: var(--text-xl);
+    line-height: var(--leading-snug);
+    font-weight: var(--weight-medium);
+    margin-top: var(--space-21);
+    margin-bottom: var(--space-8);
+}
+
+.golden-h5,
+h5 {
+    font-size: var(--text-lg);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-medium);
+    margin-top: var(--space-21);
+    margin-bottom: var(--space-8);
+}
+
+.golden-h6,
+h6 {
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin-top: var(--space-13);
+    margin-bottom: var(--space-8);
+}
+
+/* ==========================================================================
+   GOLDEN PARAGRAPH & TEXT BLOCK STYLES
+   ========================================================================== */
+
+/* Paragraphs with golden spacing */
+.golden-body p,
+.cell-body p,
+.face-body p,
+.post-content p {
+    margin-bottom: var(--paragraph-spacing);
+    max-width: var(--measure-golden);
+}
+
+.golden-body p:last-child,
+.cell-body p:last-child,
+.face-body p:last-child,
+.post-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* Lead paragraph - emphasized first paragraph */
+.golden-lead,
+.cell-body > p:first-of-type,
+.post-content > p:first-of-type {
+    font-size: var(--text-lg);
+    line-height: var(--leading-relaxed);
+    color: inherit;
+    opacity: 0.95;
+}
+
+/* Small text */
+.golden-small,
+small,
+.text-small {
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+}
+
+/* Extra small / captions */
+.golden-caption,
+figcaption,
+.caption {
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    letter-spacing: var(--tracking-wide);
+    opacity: 0.7;
+}
+
+/* ==========================================================================
+   GOLDEN EMPHASIS & HIGHLIGHTS
+   ========================================================================== */
+
+/* Strong emphasis */
+strong, b, .golden-bold {
+    font-weight: var(--weight-bold);
+}
+
+/* Subtle emphasis */
+em, i, .golden-italic {
+    font-style: italic;
+}
+
+/* Highlighted text - uses golden proportions for padding */
+mark, .golden-highlight {
+    background: linear-gradient(
+        104deg,
+        rgba(255, 255, 0, 0) 0.9%,
+        rgba(255, 255, 0, 0.3) 2.4%,
+        rgba(255, 255, 0, 0.5) 5.8%,
+        rgba(255, 255, 0, 0.4) 93%,
+        rgba(255, 255, 0, 0.2) 96%,
+        rgba(255, 255, 0, 0) 98%
+    );
+    padding: 0.1em 0.2em;
+    border-radius: 0.1em;
+}
+
+/* ==========================================================================
+   GOLDEN LISTS
+   ========================================================================== */
+
+.golden-body ul,
+.golden-body ol,
+.cell-body ul,
+.cell-body ol,
+.post-content ul,
+.post-content ol {
+    margin-bottom: var(--paragraph-spacing);
+    padding-left: var(--space-21);
+    max-width: var(--measure-golden);
+}
+
+.golden-body li,
+.cell-body li,
+.post-content li {
+    margin-bottom: var(--space-8);
+    line-height: var(--leading-normal);
+}
+
+.golden-body li:last-child,
+.cell-body li:last-child,
+.post-content li:last-child {
+    margin-bottom: 0;
+}
+
+/* Nested lists */
+.golden-body ul ul,
+.golden-body ol ol,
+.cell-body ul ul,
+.cell-body ol ol {
+    margin-top: var(--space-8);
+    margin-bottom: 0;
+}
+
+/* ==========================================================================
+   GOLDEN BLOCKQUOTES
+   ========================================================================== */
+
+blockquote,
+.golden-quote {
+    font-size: var(--text-lg);
+    line-height: var(--leading-relaxed);
+    font-style: italic;
+    margin: var(--space-34) 0;
+    padding-left: var(--space-21);
+    border-left: var(--space-3) solid currentColor;
+    opacity: 0.9;
+    max-width: var(--measure-medium);
+}
+
+blockquote cite,
+.golden-quote cite {
+    display: block;
+    font-size: var(--text-sm);
+    font-style: normal;
+    margin-top: var(--space-13);
+    opacity: 0.7;
+}
+
+blockquote cite::before {
+    content: "— ";
+}
+
+/* ==========================================================================
+   GOLDEN CODE & PREFORMATTED TEXT
+   ========================================================================== */
+
+code, kbd, samp {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875em;  /* Slightly smaller than surrounding text */
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+    background: rgba(128, 128, 128, 0.1);
+}
+
+pre {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    padding: var(--space-21);
+    margin: var(--space-34) 0;
+    overflow-x: auto;
+    border-radius: var(--space-5);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+pre code {
+    padding: 0;
+    background: none;
+}
+
+/* ==========================================================================
+   GOLDEN HORIZONTAL RULES
+   ========================================================================== */
+
+hr,
+.golden-divider {
+    border: none;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.2;
+    margin: var(--space-55) 0;
+}
+
+/* Decorative divider with golden proportions */
+.golden-divider-ornate {
+    border: none;
+    height: 0;
+    margin: var(--space-55) auto;
+    max-width: var(--measure-narrow);
+    position: relative;
+}
+
+.golden-divider-ornate::before {
+    content: "* * *";
+    display: block;
+    text-align: center;
+    letter-spacing: var(--space-13);
+    opacity: 0.4;
+}
+
+/* ==========================================================================
+   GOLDEN LINKS
+   ========================================================================== */
+
+a {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+    transition: opacity 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+a:hover {
+    text-decoration-thickness: 2px;
+}
+
+/* ==========================================================================
+   GOLDEN UTILITY CLASSES
+   ========================================================================== */
+
+/* Text sizes */
+.text-2xs { font-size: var(--text-2xs); }
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.text-3xl { font-size: var(--text-3xl); }
+.text-4xl { font-size: var(--text-4xl); }
+.text-5xl { font-size: var(--text-5xl); }
+.text-6xl { font-size: var(--text-6xl); }
+
+/* Line heights */
+.leading-none { line-height: var(--leading-none); }
+.leading-tight { line-height: var(--leading-tight); }
+.leading-snug { line-height: var(--leading-snug); }
+.leading-normal { line-height: var(--leading-normal); }
+.leading-relaxed { line-height: var(--leading-relaxed); }
+.leading-loose { line-height: var(--leading-loose); }
+
+/* Letter spacing */
+.tracking-tighter { letter-spacing: var(--tracking-tighter); }
+.tracking-tight { letter-spacing: var(--tracking-tight); }
+.tracking-normal { letter-spacing: var(--tracking-normal); }
+.tracking-wide { letter-spacing: var(--tracking-wide); }
+.tracking-wider { letter-spacing: var(--tracking-wider); }
+.tracking-widest { letter-spacing: var(--tracking-widest); }
+
+/* Font weights */
+.font-light { font-weight: var(--weight-light); }
+.font-normal { font-weight: var(--weight-normal); }
+.font-medium { font-weight: var(--weight-medium); }
+.font-semibold { font-weight: var(--weight-semibold); }
+.font-bold { font-weight: var(--weight-bold); }
+
+/* Measure (max-width) */
+.measure-narrow { max-width: var(--measure-narrow); }
+.measure-medium { max-width: var(--measure-medium); }
+.measure-golden { max-width: var(--measure-golden); }
+.measure-wide { max-width: var(--measure-wide); }
+
+/* Fibonacci spacing - margins */
+.m-0 { margin: var(--space-0); }
+.m-1 { margin: var(--space-1); }
+.m-2 { margin: var(--space-2); }
+.m-3 { margin: var(--space-3); }
+.m-5 { margin: var(--space-5); }
+.m-8 { margin: var(--space-8); }
+.m-13 { margin: var(--space-13); }
+.m-21 { margin: var(--space-21); }
+.m-34 { margin: var(--space-34); }
+.m-55 { margin: var(--space-55); }
+.m-89 { margin: var(--space-89); }
+
+/* Fibonacci spacing - margin bottom (most common) */
+.mb-0 { margin-bottom: var(--space-0); }
+.mb-1 { margin-bottom: var(--space-1); }
+.mb-2 { margin-bottom: var(--space-2); }
+.mb-3 { margin-bottom: var(--space-3); }
+.mb-5 { margin-bottom: var(--space-5); }
+.mb-8 { margin-bottom: var(--space-8); }
+.mb-13 { margin-bottom: var(--space-13); }
+.mb-21 { margin-bottom: var(--space-21); }
+.mb-34 { margin-bottom: var(--space-34); }
+.mb-55 { margin-bottom: var(--space-55); }
+.mb-89 { margin-bottom: var(--space-89); }
+
+/* Fibonacci spacing - margin top */
+.mt-0 { margin-top: var(--space-0); }
+.mt-8 { margin-top: var(--space-8); }
+.mt-13 { margin-top: var(--space-13); }
+.mt-21 { margin-top: var(--space-21); }
+.mt-34 { margin-top: var(--space-34); }
+.mt-55 { margin-top: var(--space-55); }
+.mt-89 { margin-top: var(--space-89); }
+
+/* Fibonacci spacing - padding */
+.p-0 { padding: var(--space-0); }
+.p-5 { padding: var(--space-5); }
+.p-8 { padding: var(--space-8); }
+.p-13 { padding: var(--space-13); }
+.p-21 { padding: var(--space-21); }
+.p-34 { padding: var(--space-34); }
+.p-55 { padding: var(--space-55); }
+
+/* Gap (for flexbox/grid) */
+.gap-5 { gap: var(--space-5); }
+.gap-8 { gap: var(--space-8); }
+.gap-13 { gap: var(--space-13); }
+.gap-21 { gap: var(--space-21); }
+.gap-34 { gap: var(--space-34); }
+
+/* ==========================================================================
+   GOLDEN TEXT BALANCE (Optical Adjustments)
+   ========================================================================== */
+
+/* Prevent orphans and widows */
+.text-balance {
+    text-wrap: balance;
+}
+
+/* For headlines that should wrap nicely */
+.text-pretty {
+    text-wrap: pretty;
+}
+
+/* Hyphenation for justified text */
+.text-hyphenate {
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    hyphenate-limit-chars: 6 3 2;
+}
+
+/* ==========================================================================
+   DARK MODE ADJUSTMENTS
+   Golden ratios work in both modes, but we adjust contrast
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+    .golden-body,
+    .cell-body,
+    .face-body {
+        /* Slightly increase line-height in dark mode for readability */
+        line-height: calc(var(--leading-normal) * 1.02);
+    }
+
+    /* Reduce font-weight perception in dark mode */
+    strong, b, .golden-bold {
+        font-weight: var(--weight-semibold);
+    }
+}
+
+/* ==========================================================================
+   PRINT STYLES
+   Optimized for paper using golden ratios
+   ========================================================================== */
+
+@media print {
+    :root {
+        --text-base: 11pt;
+        --text-lg: 13pt;
+        --text-xl: 16pt;
+        --text-2xl: 20pt;
+        --text-3xl: 26pt;
+        --text-4xl: 32pt;
+
+        --leading-normal: 1.5;  /* Slightly tighter for print */
+        --measure-golden: 4.5in; /* Golden width for US Letter */
+    }
+
+    .golden-body,
+    .cell-body,
+    .face-body,
+    .post-content {
+        color: black;
+        background: white;
+    }
+}
+
+/* ==========================================================================
+   ANIMATIONS USING GOLDEN RATIO
+   ========================================================================== */
+
+/* Golden fade in */
+@keyframes golden-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(calc(var(--space-13) * -1));
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.golden-animate-in {
+    animation: golden-fade-in 0.618s ease-out;
+}
+
+/* Staggered children animation using golden timing */
+.golden-stagger > * {
+    opacity: 0;
+    animation: golden-fade-in 0.618s ease-out forwards;
+}
+
+.golden-stagger > *:nth-child(1) { animation-delay: 0s; }
+.golden-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.golden-stagger > *:nth-child(3) { animation-delay: 0.162s; }
+.golden-stagger > *:nth-child(4) { animation-delay: 0.262s; }
+.golden-stagger > *:nth-child(5) { animation-delay: 0.424s; }
+.golden-stagger > *:nth-child(6) { animation-delay: 0.586s; }

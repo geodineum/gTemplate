@@ -1,0 +1,55 @@
+# FormatManager Configuration for gCube (staging.nierto.com)
+# gNode-powered format detection and conversion
+
+enabled: true
+implementation: gnode  # Uses gNode daemon for format processing
+requires:
+  - gnode_client
+
+config:
+  debug: false
+  use_gnode: true
+  auto_detect: true
+  validation_mode: "strict"
+  cache_detection_results: true
+
+  detection:
+    confidence_threshold: 0.7
+    detection_cache_ttl: 300  # 5 minutes
+    pattern_cache: true
+    pattern_timeout_ms: 100
+    case_sensitive: true
+
+  validation:
+    validate_on_register: true
+    validate_on_convert: true
+    max_validation_errors: 10
+    schema_draft: "draft-07"
+    strict_schema: true
+    coerce_types: false
+
+  conversion:
+    conversion_timeout_ms: 5000
+    preserve_unknown_fields: false
+    intermediate_format: "json"
+    allow_lossy_conversion: false
+
+  registry:
+    max_formats: 100
+    format_ttl: 86400  # 24 hours
+    allow_format_updates: true
+    versioning_enabled: true
+
+  security:
+    sandbox_conversion: true
+    max_message_size: 1048576  # 1MB
+    max_schema_size: 102400    # 100KB
+    max_patterns_per_format: 10
+    sanitize_output: true
+
+  metrics:
+    track_performance: true
+    log_slow_operations: true
+    slow_threshold_ms: 200
+    track_detection_accuracy: true
+    track_conversion_failures: true

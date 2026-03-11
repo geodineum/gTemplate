@@ -1,0 +1,20 @@
+# Dependencies
+vendor/
+node_modules/
+
+# Per-site configuration (contains credentials)
+registration.local.yaml
+wp-config-geodineum.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log

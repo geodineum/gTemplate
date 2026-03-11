@@ -1,0 +1,44 @@
+# ManifestManager Configuration for gCube
+# ========================================
+# PWA manifest generation and management
+
+enabled: true
+debug: false
+
+# PWA Manifest
+manifest:
+  name: "gCube Site"
+  short_name: "gCube"
+  description: "3D Cube Interface"
+  start_url: "/"
+  display: standalone
+  orientation: any
+  background_color: "#ffffff"
+  theme_color: "#e51022"  # gCube highlight color
+  scope: "/"
+
+# Icons
+icons:
+  path: /assets/icons/
+  sizes:
+    - 72
+    - 96
+    - 128
+    - 144
+    - 152
+    - 192
+    - 384
+    - 512
+  maskable: true
+
+# Service Worker (if managed by ManifestManager)
+service_worker:
+  enabled: true
+  path: /sw.js
+  scope: "/"
+
+# Cache settings
+cache:
+  enabled: true
+  ttl: 86400  # 24 hours
+  group: manifest
