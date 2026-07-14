@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * gTemplate Smart Site Registration
  *
@@ -96,7 +97,7 @@ function load_config_from_valkey(string $site_id): ?array
             return null;
         }
 
-        error_log("gTemplate Registration: Loaded config from ValKey via gCore (site_id: {$site_id})");
+        gtemplate_track_error("gTemplate Registration: Loaded config from ValKey via gCore (site_id: {$site_id})");
         return $config;
 
     } catch (\Throwable $e) {
@@ -126,7 +127,7 @@ function load_config_from_yaml(): ?array
                 // Auto-fill site_id from domain if missing
                 if (empty($config['site_id'])) {
                     $config['site_id'] = get_site_id_from_domain();
-                    error_log("gTemplate Registration: Auto-derived site_id from domain: {$config['site_id']}");
+                    gtemplate_track_error("gTemplate Registration: Auto-derived site_id from domain: {$config['site_id']}");
                 }
 
                 // Auto-fill ValKey user if missing
@@ -139,7 +140,7 @@ function load_config_from_yaml(): ?array
                     $config['valkey']['password_file'] = '/opt/gNode/.gnode/valkey_client_' . $config['site_id'] . '.password';
                 }
 
-                error_log("gTemplate Registration: Loaded config from {$config_file} (site_id: {$config['site_id']})");
+                gtemplate_track_error("gTemplate Registration: Loaded config from {$config_file} (site_id: {$config['site_id']})");
                 return $config;
             }
         }
@@ -147,7 +148,7 @@ function load_config_from_yaml(): ?array
 
     // Fallback: Return minimal auto-detected config with 19 semantic dimensions
     $auto_site_id = get_site_id_from_domain();
-    error_log("gTemplate Registration: No config file found, using auto-detected config (site_id: {$auto_site_id})");
+    gtemplate_track_error("gTemplate Registration: No config file found, using auto-detected config (site_id: {$auto_site_id})");
 
     return [
         'version' => '1.0.0',
@@ -266,17 +267,17 @@ function register_site_direct(array $config): bool
         if ($gCore) {
             $topology = $gCore->getService('TopologyManager');
             if ($topology && $topology->isInitialized()) {
-                error_log("gTemplate: register_site_direct() delegating to TopologyManager (canonical flow)");
+                gtemplate_track_error("gTemplate: register_site_direct() delegating to TopologyManager (canonical flow)");
                 return $topology->forceRegister();
             }
         }
     } catch (\Throwable $e) {
-        error_log("gTemplate: TopologyManager unavailable, using fallback: " . $e->getMessage());
+        gtemplate_track_error("gTemplate: TopologyManager unavailable, using fallback: " . $e->getMessage());
     }
 
     // Service registration is now handled by the gNode daemon's periodic discovery
     // (reads geometric_topology.yaml). No PHP-side registration needed.
-    error_log("gTemplate: register_site_direct() skipped — daemon handles registration via discovery");
+    gtemplate_track_error("gTemplate: register_site_direct() skipped — daemon handles registration via discovery");
     return false;
 }
 
@@ -297,13 +298,13 @@ function sync_config_to_valkey(array $config): bool
 
         // Get gNode-Client from gCore (NEVER create directly!)
         if (!$gCore || !$gCore->hasService('gnode_client')) {
-            error_log("gTemplate Registration: gCore not available for config sync");
+            gtemplate_track_error("gTemplate Registration: gCore not available for config sync");
             return false;
         }
 
         $gNodeClient = $gCore->getService('gnode_client');
         if (!$gNodeClient) {
-            error_log("gTemplate Registration: gNode client not available from gCore");
+            gtemplate_track_error("gTemplate Registration: gNode client not available from gCore");
             return false;
         }
 
@@ -339,81 +340,12 @@ function sync_config_to_valkey(array $config): bool
             }
         }
 
-        error_log("gTemplate Registration: Config synced to ValKey via gCore ({{$site_id}}:config:*)");
+        gtemplate_track_error("gTemplate Registration: Config synced to ValKey via gCore ({{$site_id}}:config:*)");
         return true;
 
     } catch (\Throwable $e) {
-        error_log("gTemplate Registration: Config sync failed - " . $e->getMessage());
+        gtemplate_track_error("gTemplate Registration: Config sync failed - " . $e->getMessage());
         return false;
-    }
-}
-
-/**
- * Check if gNode-Client is available via gCore
- *
- * Tests connectivity through gCore's gNode-Client.
- * gCore handles all ValKey credential discovery internally.
- * Architecture: gTemplate → gCore → gNode-Client → ValKey
- *
- * @param array $config Registration config (site_id used for error messages)
- * @return array ['exists' => bool, 'error' => string|null]
- */
-function check_valkey_acl_user(array $config): array
-{
-    global $gCore;
-
-    $site_id = $config['site_id'] ?? '';
-
-    // Check if gCore is available with gNode-Client
-    // NOTE: gCore handles ALL ValKey credential discovery internally
-    // gTemplate does NOT check password files - that's gCore's job
-    try {
-        if (!$gCore || !$gCore->hasService('gnode_client')) {
-            return [
-                'exists' => false,
-                'error' => "gCore not initialized or gNode-Client not available",
-                'hint' => "Ensure gCore is initialized before registration"
-            ];
-        }
-
-        $gNodeClient = $gCore->getService('gnode_client');
-        if (!$gNodeClient) {
-            return [
-                'exists' => false,
-                'error' => "gNode client not available from gCore",
-                'hint' => "Check gCore initialization and ValKey service"
-            ];
-        }
-
-        // Test connectivity with a ping
-        $gNodeClient->ping();
-
-        return ['exists' => true, 'error' => null];
-
-    } catch (\Throwable $e) {
-        $msg = $e->getMessage();
-
-        if (strpos($msg, 'WRONGPASS') !== false || strpos($msg, 'AUTH') !== false) {
-            return [
-                'exists' => false,
-                'error' => "ValKey authentication failed for site '{$site_id}'",
-                'hint' => "Run: sudo /opt/gNode/scripts/setup-site-acl.sh {$site_id}"
-            ];
-        }
-
-        if (strpos($msg, 'NOAUTH') !== false) {
-            return [
-                'exists' => false,
-                'error' => "ValKey ACL user does not exist for site '{$site_id}'",
-                'hint' => "Run: sudo /opt/gNode/scripts/setup-site-acl.sh {$site_id}"
-            ];
-        }
-
-        return [
-            'exists' => false,
-            'error' => "gCore gNode-Client connection failed: {$msg}",
-            'hint' => "Check valkey-gnode service: sudo systemctl status valkey-gnode"
-        ];
     }
 }
 
@@ -430,7 +362,7 @@ function check_valkey_acl_user(array $config): array
 // gTemplate now delegates ALL registration to gCore's TopologyManager,
 // ensuring a single canonical registration flow across all themes.
 //
-// @see MISSION_REGISTRATION_HOMOGENIZATION.scn.md
+// @see the registration architecture documentation
 // @see GNODE_SERVICE_REGISTRATION_PROTOCOL.md
 // ============================================================================
 
@@ -444,7 +376,7 @@ function check_valkey_acl_user(array $config): array
  * - API endpoint discovery
  * - Hash-based idempotency
  *
- * @see /home/august/gh/gCore/Modules/Managers/Base/TopologyManager/TopologyManager.php
+ * @see gCore: Modules/Managers/Base/TopologyManager/TopologyManager.php
  */
 add_action('after_switch_theme', function() {
     // Only run for the current theme (check template name dynamically)
@@ -459,21 +391,21 @@ add_action('after_switch_theme', function() {
         return;
     }
 
-    error_log("gTemplate: Theme activated ({$current_template}) - delegating to gCore TopologyManager");
+    gtemplate_track_error("gTemplate: Theme activated ({$current_template}) - delegating to gCore TopologyManager");
 
     global $gCore;
 
     if (!$gCore) {
-        error_log("gTemplate: gCore not available during theme activation");
+        gtemplate_track_error("gTemplate: gCore not available during theme activation");
         return;
     }
 
     try {
-        // Get TopologyManager via gCore resolver (returns stub or premium)
+        // Get TopologyManager via gCore resolver (returns stub or extension)
         $topology = $gCore->getService('TopologyManager');
 
         if (!$topology || !$topology->isInitialized()) {
-            error_log("gTemplate: TopologyManager not initialized during theme activation");
+            gtemplate_track_error("gTemplate: TopologyManager not initialized during theme activation");
             return;
         }
 
@@ -482,13 +414,13 @@ add_action('after_switch_theme', function() {
 
         if ($success) {
             $status = $topology->getRegistrationStatus();
-            error_log("gTemplate: Site registered via TopologyManager (hash: " . substr($status['hash'] ?? '', 0, 8) . "...)");
+            gtemplate_track_error("gTemplate: Site registered via TopologyManager (hash: " . substr($status['hash'] ?? '', 0, 8) . "...)");
         } else {
-            error_log("gTemplate: Registration failed - check gNode daemon status");
+            gtemplate_track_error("gTemplate: Registration failed - check gNode daemon status");
         }
 
     } catch (\Throwable $e) {
-        error_log("gTemplate: Theme activation registration failed: " . $e->getMessage());
+        gtemplate_track_error("gTemplate: Theme activation registration failed: " . $e->getMessage());
     }
 }, 10);
 
@@ -508,7 +440,7 @@ add_action('switch_theme', function($new_name, $new_theme) {
     }
 
     $theme_name = wp_get_theme()->get('Name');
-    error_log("gTemplate: Theme deactivated ({$theme_name}) - site remains registered (manual deregister via CLI if needed)");
+    gtemplate_track_error("gTemplate: Theme deactivated ({$theme_name}) - site remains registered (manual deregister via CLI if needed)");
     // Note: We don't auto-deregister to prevent accidental data loss
     // Use: wp gtemplate deregister --force
 }, 10, 2);

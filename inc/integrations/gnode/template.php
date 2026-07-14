@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Template Integration for gTemplate Theme
  *
  * Provides graceful template management capabilities:
- * - Premium: Full Tera engine rendering via gNode
- * - Free-tier: Basic PHP variable substitution
+ * - Extension: Full Tera engine rendering via gNode
+ * - Default: Basic PHP variable substitution
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_template_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] TemplateManager: gCore not available');
+            gtemplate_track_error('[gTemplate] TemplateManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get TemplateManager via gCore resolver (returns stub or premium automatically)
+        // Get TemplateManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('TemplateManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -49,19 +50,19 @@ function gtemplate_init_template_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_template_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('TemplateManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] TemplateManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('TemplateManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] TemplateManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] TemplateManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] TemplateManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the TemplateManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\TemplateManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\TemplateManagerInterface|null
  */
 function gtemplate_get_template_manager() {
     return $GLOBALS['gtemplate_template_manager'] ?? null;
@@ -70,8 +71,8 @@ function gtemplate_get_template_manager() {
 /**
  * Render a template string with variable substitution
  *
- * Premium: Full Tera engine with loops, conditionals, filters
- * Free-tier: Basic {{ variable }} substitution
+ * Extension: Full Tera engine with loops, conditionals, filters
+ * Default: Basic {{ variable }} substitution
  *
  * @param string $template Template content
  * @param array $variables Variables for substitution
@@ -185,11 +186,11 @@ function gtemplate_escape_html(string $string): string {
 }
 
 /**
- * Check if premium template features are available
+ * Check if extension template features are available
  *
  * @return bool
  */
-function gtemplate_template_premium(): bool {
+function gtemplate_template_extension_mode(): bool {
     $manager = gtemplate_get_template_manager();
 
     if (!$manager) {
@@ -197,7 +198,7 @@ function gtemplate_template_premium(): bool {
     }
 
     $status = $manager->getStatus();
-    return ($status['mode'] ?? 'stub') === 'premium';
+    return ($status['mode'] ?? 'stub') === 'full';
 }
 
 /**

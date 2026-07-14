@@ -1,39 +1,65 @@
 <?php
+declare(strict_types=1);
 /**
- * KeyBasedClient Integration for gTemplate
+ * Keybased / Bundle-cache Integration for gTemplate
  *
- * Demonstrates how to use the new KeyBasedClient for 11× faster gNode operations.
- *
- * Performance comparison:
- * - Stream-based (old): 114ms average per request
- * - Key-based (new):     10ms average per request
+ * Reads pre-rendered face bundles from gNode for fast template
+ * delivery (avoids the ~114ms stream-based round-trip on warm-cache
+ * hits, ~10ms typical). This file talks to the `gNodeClientInterface`
+ * surface — gNodeClient (which implements gNodeClientInterface) is the
+ * unified client for key-based reads and stream-based writes.
  *
  * Usage:
- * 1. Ensure gNode daemon is running with key-based response handler
- * 2. Include this file: require_once get_template_directory() . '/inc/keybased-integration.php';
- * 3. Call functions: gtemplate_get_face_from_bundle(), gtemplate_render_template_fast(), etc.
+ * 1. gNode daemon running with bundle-cache producer (gnode-cms or
+ *    equivalent) populating the {site}:gnode:bundle:full key.
+ * 2. This file is loaded by gTemplate's bootstrap autoload at Phase 9
+ *    (integrations) — no manual require needed.
+ * 3. Callers use gtemplate_get_face_from_bundle($faceId),
+ *    gtemplate_render_template_fast(), gtemplate_get_bundle(), etc.
  *
  * @package gTemplate
- * @version 2.0.0
+ * @version 2.1.0
  */
 
-use gCore\gNode\KeyBasedClient;
+use gCore\gNode\gNodeClientInterface;
 use gCore\gNode\Storage\ValKeyStorage;
 use gCore\gNode\Exception\KeyBasedException;
 
 /**
- * Get KeyBasedClient instance from global variable
+ * Get the gNode client instance from the keybased-tier global.
  *
- * @return KeyBasedClient|null
+ * The global `gtemplate_gnode_keybased_client` is populated
+ * by gcore-init.php with a `\gCore\gNode\gNodeClient` instance; that
+ * class implements gNodeClientInterface, so this getter returns it
+ * via the interface's contract rather than the removed concrete
+ * class. The defensive `instanceof KeyBasedClient` gate from the
+ * A simple isset() is sufficient — the return type aligns with the
+ * canonical client class.
+ *
+ * @return gNodeClientInterface|null
  */
-function gtemplate_get_keybased_client(): ?KeyBasedClient
+function gtemplate_get_keybased_client(): ?gNodeClientInterface
 {
-    // Get from global variable (initialized in functions.php)
-    if (isset($GLOBALS['gtemplate_gnode_keybased_client'])) {
+    if (isset($GLOBALS['gtemplate_gnode_keybased_client'])
+        && $GLOBALS['gtemplate_gnode_keybased_client'] instanceof gNodeClientInterface) {
         return $GLOBALS['gtemplate_gnode_keybased_client'];
     }
 
-    error_log('[gTemplate KeyBased] KeyBasedClient not initialized (missing global)');
+    // Admin / REST context: gCore is frontend-only-initialized, so the frontend
+    // global is absent here and the Cache page reported "KeyBasedClient may not
+    // be initialized". Lazily build the lightweight per-site admin client (the
+    // same gNodeClient::forSite the gCore admin pages use) so cache stats +
+    // invalidation work in wp-admin without a full frontend gCore init. Gated to
+    // backend so frontend free-tier (global explicitly null) stays untouched.
+    $is_backend = is_admin() || (defined('REST_REQUEST') && REST_REQUEST);
+    if ($is_backend && function_exists('gcore_get_admin_gnode_client')) {
+        $client = gcore_get_admin_gnode_client();
+        if ($client instanceof gNodeClientInterface) {
+            $GLOBALS['gtemplate_gnode_keybased_client'] = $client;
+            return $client;
+        }
+    }
+
     return null;
 }
 
@@ -49,7 +75,7 @@ function gtemplate_get_gnode_client(): ?\gCore\gNode\Client
         return $GLOBALS['gtemplate_gnode_client'];
     }
 
-    error_log('[gTemplate gNode] Stream-based Client not initialized (missing global)');
+    gtemplate_track_error('[gTemplate gNode] Stream-based Client not initialized (missing global)');
     return null;
 }
 
@@ -69,7 +95,7 @@ function gtemplate_get_face_from_bundle(int $faceId): ?string
     try {
         return $client->getFaceHtml($faceId);
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get face: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get face: ' . $e->getMessage());
         return null;
     }
 }
@@ -89,7 +115,7 @@ function gtemplate_get_bundle(): ?array
     try {
         return $client->getBundle();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get bundle: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get bundle: ' . $e->getMessage());
         return null;
     }
 }
@@ -112,7 +138,7 @@ function gtemplate_render_template_fast(string $templateId, array $context = [])
         $response = $client->renderTemplate($templateId, $context);
         return $response['result'] ?? null;
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Template render failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Template render failed: ' . $e->getMessage());
         return null;
     }
 }
@@ -133,7 +159,7 @@ function gtemplate_invalidate_cache(?string $pattern = null): int
     try {
         return $client->invalidateCache($pattern);
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Cache invalidation failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Cache invalidation failed: ' . $e->getMessage());
         return 0;
     }
 }
@@ -153,7 +179,7 @@ function gtemplate_invalidate_bundle(): bool
     try {
         return $client->invalidateBundle();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Bundle invalidation failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Bundle invalidation failed: ' . $e->getMessage());
         return false;
     }
 }
@@ -173,7 +199,7 @@ function gtemplate_get_cache_stats(): array
     try {
         return $client->getCacheStats();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get cache stats: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get cache stats: ' . $e->getMessage());
         return [];
     }
 }
@@ -193,7 +219,7 @@ function gtemplate_get_navigation_from_bundle(): ?array
     try {
         return $client->getNavigationMenu();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get navigation: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get navigation: ' . $e->getMessage());
         return null;
     }
 }
@@ -213,7 +239,7 @@ function gtemplate_get_posts_from_bundle(): ?array
     try {
         return $client->getPostsList();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get posts: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get posts: ' . $e->getMessage());
         return null;
     }
 }
@@ -233,7 +259,7 @@ function gtemplate_get_metadata_from_bundle(): ?array
     try {
         return $client->getSiteMetadata();
     } catch (KeyBasedException $e) {
-        error_log('[gTemplate KeyBased] Failed to get metadata: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate KeyBased] Failed to get metadata: ' . $e->getMessage());
         return null;
     }
 }
@@ -254,7 +280,7 @@ add_action('save_post', function($post_id) {
     gtemplate_invalidate_bundle();
     gtemplate_invalidate_cache('cache:*');
 
-    error_log('[gTemplate KeyBased] Invalidated cache after post save: ' . $post_id);
+    gtemplate_track_error('[gTemplate KeyBased] Invalidated cache after post save: ' . $post_id);
 }, 10, 1);
 
 /**
@@ -265,7 +291,7 @@ add_action('update_option', function($option_name, $old_value, $value) {
     if (strpos($option_name, 'gtemplate_') === 0 || strpos($option_name, 'theme_') === 0) {
         gtemplate_invalidate_bundle();
         gtemplate_invalidate_cache();
-        error_log('[gTemplate KeyBased] Invalidated cache after option update: ' . $option_name);
+        gtemplate_track_error('[gTemplate KeyBased] Invalidated cache after option update: ' . $option_name);
     }
 }, 10, 3);
 
@@ -357,40 +383,67 @@ add_action('rest_api_init', function() {
  * Admin menu: Cache management
  */
 add_action('admin_menu', function() {
-    add_management_page(
-        'gTemplate Cache',
-        'gTemplate Cache',
+    add_submenu_page(
+        'gcore-dashboard',
+        'Cache Stats',
+        'Cache Stats',
         'manage_options',
         'gtemplate-cache',
         function() {
             $stats = gtemplate_get_cache_stats();
             ?>
-            <div class="wrap">
-                <h1>gTemplate Cache Management</h1>
+            <div class="wrap gdash">
+                <h1><?php echo esc_html__('gTemplate Cache Management', 'gcore'); ?></h1>
 
-                <div class="card">
-                    <h2>Cache Statistics</h2>
-                    <?php if (!empty($stats)): ?>
-                        <table class="widefat">
-                            <tr><th>Site ID</th><td><?php echo esc_html($stats['site_id']); ?></td></tr>
-                            <tr><th>Total Keys</th><td><?php echo number_format($stats['key_count']); ?></td></tr>
-                            <tr><th>Total Size</th><td><?php echo esc_html($stats['total_size_mb']); ?> MB</td></tr>
-                        </table>
+                <div class="gdash-card">
+                    <div class="gdash-card-title"><?php echo esc_html__('Cache Statistics', 'gcore'); ?></div>
+                    <?php if (!empty($stats)):
+                        // GNODE_CACHE_STATS returns hits/misses/writes/deletes/
+                        // items/total_size/hit_ratio/... (not site_id/key_count/
+                        // total_size_mb). Render what it actually returns.
+                        $hits    = (int) ($stats['hits'] ?? 0);
+                        $misses  = (int) ($stats['misses'] ?? 0);
+                        $reqs    = $hits + $misses;
+                        $ratio   = isset($stats['hit_ratio']) ? (float) $stats['hit_ratio'] : ($reqs > 0 ? $hits / $reqs : 0.0);
+                        $items   = (int) ($stats['items'] ?? 0);
+                        $writes  = (int) ($stats['writes'] ?? 0);
+                        $deletes = (int) ($stats['deletes'] ?? 0);
+                        $bytes   = (int) ($stats['total_size'] ?? 0);
+                        $human   = $bytes >= 1048576 ? number_format($bytes / 1048576, 1) . ' MB'
+                                 : ($bytes >= 1024 ? number_format($bytes / 1024, 1) . ' KB' : $bytes . ' B');
+                    ?>
+                        <div class="gdash-stat-grid">
+                            <div class="gdash-stat">
+                                <div class="gdash-stat-label"><?php echo esc_html__('Hit rate', 'gcore'); ?></div>
+                                <div class="gdash-stat-value"><?php echo esc_html(number_format($ratio * 100, 1)); ?>%</div>
+                                <div class="gdash-stat-sub"><?php echo esc_html(sprintf(__('%1$s hits / %2$s misses', 'gcore'), number_format($hits), number_format($misses))); ?></div>
+                            </div>
+                            <div class="gdash-stat">
+                                <div class="gdash-stat-label"><?php echo esc_html__('Cached items', 'gcore'); ?></div>
+                                <div class="gdash-stat-value"><?php echo esc_html(number_format($items)); ?></div>
+                                <div class="gdash-stat-sub"><?php echo esc_html($human); ?></div>
+                            </div>
+                            <div class="gdash-stat">
+                                <div class="gdash-stat-label"><?php echo esc_html__('Writes / Deletes', 'gcore'); ?></div>
+                                <div class="gdash-stat-value"><?php echo esc_html(number_format($writes)); ?> / <?php echo esc_html(number_format($deletes)); ?></div>
+                                <div class="gdash-stat-sub"><?php echo esc_html(sprintf(__('%s requests total', 'gcore'), number_format($reqs))); ?></div>
+                            </div>
+                        </div>
                     <?php else: ?>
-                        <p>Cache statistics not available. KeyBasedClient may not be initialized.</p>
+                        <p><?php echo esc_html__('Cache statistics not available yet. If this persists after a page refresh, the cache metrics hash may be empty (no traffic) or the GNODE_CACHE_STATS function needs reloading on the daemon.', 'gcore'); ?></p>
                     <?php endif; ?>
                 </div>
 
-                <div class="card">
-                    <h2>Actions</h2>
+                <div class="gdash-card">
+                    <div class="gdash-card-title"><?php echo esc_html__('Actions', 'gcore'); ?></div>
                     <form method="post" action="">
                         <?php wp_nonce_field('gtemplate_cache_actions'); ?>
                         <p>
                             <button type="submit" name="action" value="invalidate_cache" class="button">
-                                Invalidate All Cache
+                                <?php echo esc_html__('Invalidate All Cache', 'gcore'); ?>
                             </button>
                             <button type="submit" name="action" value="invalidate_bundle" class="button">
-                                Invalidate Bundle
+                                <?php echo esc_html__('Invalidate Bundle', 'gcore'); ?>
                             </button>
                         </p>
                     </form>
@@ -399,25 +452,25 @@ add_action('admin_menu', function() {
                     if (isset($_POST['action']) && check_admin_referer('gtemplate_cache_actions')) {
                         if ($_POST['action'] === 'invalidate_cache') {
                             $count = gtemplate_invalidate_cache();
-                            echo '<div class="notice notice-success"><p>Invalidated ' . $count . ' cache keys.</p></div>';
+                            echo '<div class="notice notice-success"><p>' . esc_html(sprintf(__('Invalidated %d cache keys.', 'gcore'), $count)) . '</p></div>';
                         } elseif ($_POST['action'] === 'invalidate_bundle') {
                             $success = gtemplate_invalidate_bundle();
                             if ($success) {
-                                echo '<div class="notice notice-success"><p>Bundle invalidated successfully.</p></div>';
+                                echo '<div class="notice notice-success"><p>' . esc_html__('Bundle invalidated successfully.', 'gcore') . '</p></div>';
                             } else {
-                                echo '<div class="notice notice-error"><p>Bundle invalidation failed.</p></div>';
+                                echo '<div class="notice notice-error"><p>' . esc_html__('Bundle invalidation failed.', 'gcore') . '</p></div>';
                             }
                         }
                     }
                     ?>
                 </div>
 
-                <div class="card">
-                    <h2>REST API Endpoints</h2>
+                <div class="gdash-card">
+                    <div class="gdash-card-title"><?php echo esc_html__('REST API Endpoints', 'gcore'); ?></div>
                     <ul>
-                        <li><code>GET /wp-json/gtemplate/v1/cache/stats</code> - Get cache statistics</li>
-                        <li><code>POST /wp-json/gtemplate/v1/cache/invalidate</code> - Invalidate cache (optional param: pattern)</li>
-                        <li><code>POST /wp-json/gtemplate/v1/bundle/invalidate</code> - Invalidate bundle</li>
+                        <li><code>GET /wp-json/gtemplate/v1/cache/stats</code> - <?php echo esc_html__('Get cache statistics', 'gcore'); ?></li>
+                        <li><code>POST /wp-json/gtemplate/v1/cache/invalidate</code> - <?php echo esc_html__('Invalidate cache (optional param: pattern)', 'gcore'); ?></li>
+                        <li><code>POST /wp-json/gtemplate/v1/bundle/invalidate</code> - <?php echo esc_html__('Invalidate bundle', 'gcore'); ?></li>
                     </ul>
                 </div>
             </div>

@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Metrics Integration for gTemplate Theme
  *
  * Provides graceful metrics tracking capabilities:
- * - Premium: Full gNode-based metrics with persistence
- * - Free-tier: Stub implementation with no-op tracking
+ * - Extension: Full gNode-based metrics with persistence
+ * - Default: Stub implementation with no-op tracking
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_metrics_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] MetricsManager: gCore not available');
+            gtemplate_track_error('[gTemplate] MetricsManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get MetricsManager via gCore resolver (returns stub or premium automatically)
+        // Get MetricsManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('MetricsManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -44,19 +45,19 @@ function gtemplate_init_metrics_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_metrics_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('MetricsManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] MetricsManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('MetricsManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] MetricsManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] MetricsManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] MetricsManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the MetricsManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\MetricsManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\MetricsManagerInterface|null
  */
 function gtemplate_get_metrics_manager() {
     return $GLOBALS['gtemplate_metrics_manager'] ?? null;
@@ -108,7 +109,7 @@ function gtemplate_get_metrics_summary(int $hours = 24): array {
 }
 
 /**
- * Check if metrics tracking is available (premium)
+ * Check if metrics tracking is available (requires extension)
  *
  * @return bool
  */

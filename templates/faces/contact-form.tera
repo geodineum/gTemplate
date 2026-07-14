@@ -1,0 +1,405 @@
+{# templates/faces/contact-form.tera - Secure Contact Form with HTMX #}
+{#
+   Template Variables:
+   - face_id: Tesseract cell number (0-7)
+   - blog_name: Site name
+   - api_base: REST API base URL (e.g., /wp-json/gcube/v1)
+   - csrf_token: CSRF protection token
+   - timestamp: Form load timestamp for timing validation
+   - contact_info: Object with email, phone, address, hours (optional)
+#}
+<div class="cube-face-content contact-form" data-face-id="{{ face_id }}">
+  <main class="face-body">
+    <form id="contact-form-{{ face_id }}"
+          class="contact-form-fields"
+          hx-post="{{ api_base }}/contact/submit"
+          hx-swap="outerHTML"
+          hx-indicator="#form-loading-{{ face_id }}"
+          hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
+          data-api-base="{{ api_base }}"
+          data-action="submit-contact">
+
+      {# Hidden Security Fields #}
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="_form_load_time" value="{{ timestamp }}">
+      <input type="hidden" name="_js_challenge" value="">
+      <input type="hidden" name="_behavior_data" value="">
+      <input type="hidden" name="source_url" value="{{ current_url | default(value='/') }}">
+      <input type="hidden" name="face_id" value="{{ face_id }}">
+
+      {# Honeypot Fields (hidden from humans, visible to bots) #}
+      <div class="hp-container" style="display:none !important; visibility:hidden; position:absolute; left:-9999px; height:0; overflow:hidden;" aria-hidden="true" tabindex="-1">
+        <label for="hp-website-{{ face_id }}">Website (leave blank)</label>
+        <input type="url" id="hp-website-{{ face_id }}" name="website_url" autocomplete="url" tabindex="-1">
+        <label for="hp-phone-{{ face_id }}">Phone 2 (leave blank)</label>
+        <input type="tel" id="hp-phone-{{ face_id }}" name="phone_number_2" autocomplete="tel" tabindex="-1">
+        <label for="hp-fax-{{ face_id }}">Fax (leave blank)</label>
+        <input type="text" id="hp-fax-{{ face_id }}" name="company_fax" autocomplete="fax" tabindex="-1">
+      </div>
+
+      {# Name Field #}
+      <div class="form-group">
+        <label for="contact-name-{{ face_id }}">Your Name <span class="required" aria-label="required">*</span></label>
+        <input
+          type="text"
+          id="contact-name-{{ face_id }}"
+          name="name"
+          required
+          minlength="2"
+          maxlength="100"
+          placeholder="Enter your name"
+          autocomplete="name"
+          aria-required="true">
+        <span class="field-error" role="alert" aria-live="polite"></span>
+      </div>
+
+      {# Email Field #}
+      <div class="form-group">
+        <label for="contact-email-{{ face_id }}">Your Email <span class="required" aria-label="required">*</span></label>
+        <input
+          type="email"
+          id="contact-email-{{ face_id }}"
+          name="email"
+          required
+          maxlength="255"
+          placeholder="your@email.com"
+          autocomplete="email"
+          aria-required="true">
+        <span class="field-error" role="alert" aria-live="polite"></span>
+      </div>
+
+      {# Subject Field #}
+      <div class="form-group">
+        <label for="contact-subject-{{ face_id }}">Subject</label>
+        <input
+          type="text"
+          id="contact-subject-{{ face_id }}"
+          name="subject"
+          maxlength="200"
+          placeholder="What's this about?"
+          autocomplete="off">
+      </div>
+
+      {# Message Field #}
+      <div class="form-group">
+        <label for="contact-message-{{ face_id }}">Message <span class="required" aria-label="required">*</span></label>
+        <textarea
+          id="contact-message-{{ face_id }}"
+          name="message"
+          rows="6"
+          required
+          minlength="10"
+          maxlength="5000"
+          placeholder="Your message here..."
+          aria-required="true"></textarea>
+        <span class="field-error" role="alert" aria-live="polite"></span>
+        <span class="char-count" aria-live="off"><span id="char-count-{{ face_id }}">0</span>/5000</span>
+      </div>
+
+      {# Form Actions #}
+      <div class="form-actions">
+        <button type="submit" class="submit-button" aria-describedby="submit-status-{{ face_id }}">
+          <span class="btn-text">Send Message</span>
+          <span id="form-loading-{{ face_id }}" class="htmx-indicator" aria-hidden="true">
+            <svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-dasharray="31.416" stroke-dashoffset="10"></circle>
+            </svg>
+            <span class="sr-only">Sending...</span>
+          </span>
+        </button>
+        <button type="reset" class="reset-button">Clear Form</button>
+      </div>
+
+      {# Status Area #}
+      <div id="form-status-{{ face_id }}" class="form-status" role="status" aria-live="polite"></div>
+    </form>
+
+    {# Contact Information Sidebar #}
+    {% if contact_info %}
+      <aside class="contact-info">
+        <h3>Other Ways to Reach Us</h3>
+
+        {% if contact_info.email %}
+          <p class="info-item">
+            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <strong>Email:</strong>
+            <a href="mailto:{{ contact_info.email }}">{{ contact_info.email }}</a>
+          </p>
+        {% endif %}
+
+        {% if contact_info.phone_html %}
+          {# Phone HTML pre-rendered by PHP (handles both protected and plain) #}
+          {{ contact_info.phone_html | safe }}
+        {% endif %}
+
+        {% if contact_info.address %}
+          <p class="info-item">
+            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <strong>Address:</strong>
+            <span>{{ contact_info.address }}</span>
+          </p>
+        {% endif %}
+
+        {% if contact_info.hours %}
+          <p class="info-item">
+            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <strong>Business Hours:</strong>
+            <span>{{ contact_info.hours }}</span>
+          </p>
+        {% endif %}
+      </aside>
+    {% endif %}
+  </main>
+
+  <footer class="face-footer">
+    <p class="privacy-note">
+      <svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Your information is secure and will never be shared with third parties.
+    </p>
+  </footer>
+</div>
+
+{# JavaScript is loaded via contact-form.js (enqueued by WordPress) #}
+{# This ensures proper loading order: HTMX first, then form JS #}
+
+{# Inline Styles for Form (can be moved to CSS file) #}
+<style>
+.contact-form .form-group {
+    margin-bottom: 1.25rem;
+}
+.contact-form label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-weight: 500;
+}
+.contact-form .required {
+    color: #e53e3e;
+}
+.contact-form input[type="text"],
+.contact-form input[type="email"],
+.contact-form textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.contact-form input:focus,
+.contact-form textarea:focus {
+    outline: none;
+    border-color: var(--color-primary, #3182ce);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+.contact-form .field-error {
+    display: block;
+    color: #e53e3e;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+.contact-form .char-count {
+    display: block;
+    text-align: right;
+    font-size: 0.75rem;
+    color: #718096;
+    margin-top: 0.25rem;
+}
+.contact-form .form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+.contact-form .submit-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-primary, #3182ce);
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.contact-form .submit-button:hover {
+    background: var(--color-primary-dark, #2c5282);
+}
+.contact-form .submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.contact-form .reset-button {
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    cursor: pointer;
+    color: white;
+}
+.contact-form .reset-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+.contact-form .htmx-indicator {
+    display: none;
+}
+.contact-form .htmx-request .htmx-indicator {
+    display: inline-flex;
+}
+.contact-form .htmx-request .btn-text {
+    display: none;
+}
+.contact-form .spinner {
+    width: 1.25rem;
+    height: 1.25rem;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.contact-form .form-status {
+    margin-top: 1rem;
+}
+.contact-form .form-success {
+    padding: 1rem;
+    background: #c6f6d5;
+    border: 1px solid #9ae6b4;
+    border-radius: 0.375rem;
+    color: #276749;
+}
+.contact-form .form-error,
+.contact-form .error-message {
+    padding: 1rem;
+    background: #fed7d7;
+    border: 1px solid #feb2b2;
+    border-radius: 0.375rem;
+    color: #c53030;
+}
+.contact-form .contact-info {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+}
+.contact-form .info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.contact-form .info-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+.contact-form .privacy-note {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #718096;
+}
+.contact-form .lock-icon {
+    width: 1rem;
+    height: 1rem;
+}
+.contact-form .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Mobile responsive contact form */
+@media (max-width: 768px) {
+    .contact-form .form-group {
+        margin-bottom: 2.5vmin;
+    }
+    .contact-form label {
+        font-size: 2.5vmin;
+        margin-bottom: 1vmin;
+    }
+    .contact-form input[type="text"],
+    .contact-form input[type="email"],
+    .contact-form textarea {
+        padding: 2vmin;
+        font-size: 2.8vmin;
+        border-radius: 1vmin;
+    }
+    .contact-form textarea {
+        min-height: 15vmin;
+    }
+    .contact-form .form-actions {
+        flex-direction: column;
+        gap: 2vmin;
+        margin-top: 3vmin;
+    }
+    .contact-form .submit-button,
+    .contact-form .reset-button {
+        padding: 2vmin 3vmin;
+        font-size: 2.5vmin;
+        border-radius: 1vmin;
+        width: 100%;
+        justify-content: center;
+    }
+    .contact-form .field-error {
+        font-size: 2vmin;
+    }
+    .contact-form .char-count {
+        font-size: 1.8vmin;
+    }
+    .contact-form .privacy-note {
+        font-size: 2vmin;
+    }
+}
+
+/* Landscape mobile contact form */
+@media (max-width: 926px) and (orientation: landscape) {
+    .contact-form .form-group {
+        margin-bottom: 1.5vmin;
+    }
+    .contact-form label {
+        font-size: 1.8vmin;
+        margin-bottom: 0.5vmin;
+    }
+    .contact-form input[type="text"],
+    .contact-form input[type="email"],
+    .contact-form textarea {
+        padding: 1.2vmin;
+        font-size: 2vmin;
+    }
+    .contact-form textarea {
+        min-height: 10vmin;
+    }
+    .contact-form .form-actions {
+        flex-direction: row;
+        gap: 1.5vmin;
+        margin-top: 2vmin;
+    }
+    .contact-form .submit-button,
+    .contact-form .reset-button {
+        padding: 1.2vmin 2vmin;
+        font-size: 1.8vmin;
+        width: auto;
+    }
+}
+</style>

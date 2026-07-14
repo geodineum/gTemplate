@@ -9,7 +9,7 @@
  *
  * "Communication is 80% non-verbal" - Let the ratios speak.
  *
- * @package gTesseract
+ * @package gTemplate
  * @version 1.0.0
  */
 
@@ -126,6 +126,84 @@
     --paragraph-spacing: var(--space-21);      /* 21px between paragraphs */
     --section-spacing: var(--space-55);        /* 55px between sections */
     --block-spacing: var(--space-34);          /* 34px between content blocks */
+}
+
+/* ==========================================================================
+   GEODINEUM DESIGN-SYSTEM TOKENS
+   Canonical golden vocabulary shared by page content (.geo), the gHyper /
+   findings presentations, and the gbtn components. --s-* alias the existing
+   Fibonacci --space-* scale; --t-* are the gentler content type scale; the
+   palette is gold-on-near-black. Overridable per-site from the Customizer.
+   ========================================================================== */
+:root {
+    --phi-inv: var(--phi-inverse);
+
+    /* Fibonacci spacing — aliases of --space-* (identical values) */
+    --s-1: var(--space-5);    /* 5px  */
+    --s-2: var(--space-8);    /* 8px  */
+    --s-3: var(--space-13);   /* 13px */
+    --s-4: var(--space-21);   /* 21px */
+    --s-5: var(--space-34);   /* 34px */
+    --s-6: var(--space-55);   /* 55px */
+    --s-7: var(--space-89);   /* 89px */
+    --s-8: var(--space-144);  /* 144px */
+
+    /* Content type scale (φ-derived, gentler than --text-*). Floor raised one
+       notch: body/descriptors/labels land comfortably above "reach for your
+       glasses"; the larger steps are nudged only gently so hero display sizes
+       do not balloon. One scale, applied on every .geo surface. */
+    --t-1: 0.82rem;
+    --t-2: 0.98rem;
+    --t-3: 1.18rem;
+    --t-4: 1.28rem;
+    --t-5: 1.5rem;
+    --t-6: 1.8rem;
+    --t-7: 2.75rem;
+    --t-8: 4.2rem;
+    --t-9: 6.6rem;
+
+    /* Palette — gold on near-black */
+    --bg-0: #0a0a0d;
+    --bg-1: #111118;
+    --bg-2: #18181f;
+    --bg-3: #20202a;
+    --line: #2a2a35;
+    --text: #d4d4dc;
+    --text-dim: #888892;
+    --text-faint: #4d4d57;
+    --gold: #c9a961;
+    --gold-bright: #e8c468;
+    --gold-soft: #8d7944;
+    --good: #6fd388;
+    --warn: #d3a062;
+    --crit: #cc6464;
+    --disk-edge: #7fc8d8;
+}
+
+/* ==========================================================================
+   LIGHT THEME
+   Selectable via the site toggle (geo-behaviors.js sets data-theme="light" on
+   <html>). Bright ground, ink text, the brand gold darkened for contrast on
+   white, cyan kept as the cool electric accent. Attribute selector outranks the
+   :root defaults and the Customizer's :root overrides, so light always wins when
+   chosen. Tunable per-site from the Customizer.
+   ========================================================================== */
+:root[data-theme="light"] {
+    --bg-0: #ffffff;
+    --bg-1: #f5f3ec;
+    --bg-2: #edeae0;
+    --bg-3: #e3dfd2;
+    --line: #d9d3c4;
+    --text: #17161b;
+    --text-dim: #4a4954;
+    --text-faint: #6f6c78;
+    --gold: #8a6f2c;
+    --gold-bright: #6d531a;
+    --gold-soft: #7a6733;
+    --good: #2f8f4e;
+    --warn: #b0731d;
+    --crit: #c0392b;
+    --disk-edge: #0e7f97;
 }
 
 /* ==========================================================================

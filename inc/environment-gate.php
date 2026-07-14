@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Environment Gate - Viewkey-based access control for non-production environments
  *
@@ -18,12 +19,19 @@
 
 namespace gTemplate;
 
+use gCore\Modules\Core\Utils\ViewKeyGate;
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
 /**
  * Environment Gate class
+ *
+ * Cookie + hash primitives delegated to gCore\Modules\Core\Utils\ViewKeyGate
+ * so the gDash admin gate (DashboardAdmin) and this public-site splash
+ * gate stay in lockstep on cookie name, hashing strategy, and expiry
+ * semantics (ROADMAP §B.4 closure).
  */
 class EnvironmentGate
 {
@@ -33,11 +41,18 @@ class EnvironmentGate
     /** @var array Site configuration */
     private array $config;
 
-    /** @var string Cookie name for viewkey */
-    private const COOKIE_NAME = 'gtemplate_viewkey';
+    /**
+     * Cookie name for the viewkey. Shared with the gDash admin gate
+     * (gCore\Modules\Dashboard\Admin\DashboardAdmin) so a single
+     * authenticated session covers both the public splash and wp-admin
+     * — see gCore\Modules\Core\Utils\ViewKeyGate. Pre-Ch.1.A this was
+     * `gtemplate_viewkey` (theme-scoped); operators with stale cookies
+     * on dev/staging will need to re-enter the viewkey once.
+     */
+    private const COOKIE_NAME = ViewKeyGate::DEFAULT_COOKIE_NAME;
 
     /** @var int Default cookie expiry (24 hours) */
-    private const DEFAULT_EXPIRY = 86400;
+    private const DEFAULT_EXPIRY = ViewKeyGate::DEFAULT_EXPIRY;
 
     /**
      * Initialize the environment gate
@@ -55,10 +70,21 @@ class EnvironmentGate
      * 1. Config file (metadata.environment)
      * 2. WP_ENVIRONMENT_TYPE constant
      * 3. Domain-based auto-detection
-     * 4. Default to 'production' (safest)
+     * 4. Default to 'testing' (safe-by-default — new sites are gated until promoted)
      */
     private function detectEnvironment(): string
     {
+        // 0. Authoritative: active_environment in ValKey (written by `geodineum
+        // env set`), read via gCore. Keeps the gate in lock-step with COMMS
+        // (gtemplate_detect_environment) and lets a switch apply instantly with
+        // no config-file edit or cache bust.
+        if (function_exists('gcore_site_active_environment')) {
+            $vk = gcore_site_active_environment();
+            if ($vk) {
+                return $this->normalizeEnvironment($vk);
+            }
+        }
+
         // 1. Check config file first (highest priority)
         if (!empty($this->config['metadata']['environment'])) {
             return $this->normalizeEnvironment($this->config['metadata']['environment']);
@@ -69,7 +95,7 @@ class EnvironmentGate
             return $this->normalizeEnvironment(WP_ENVIRONMENT_TYPE);
         }
 
-        // 3. Auto-detect from domain
+        // 3. Auto-detect from domain (production domains must be explicitly detectable)
         $domain = $_SERVER['HTTP_HOST'] ?? parse_url(home_url(), PHP_URL_HOST) ?? '';
 
         if (strpos($domain, 'test') !== false || strpos($domain, 'dev') !== false || strpos($domain, 'local') !== false) {
@@ -82,8 +108,8 @@ class EnvironmentGate
             return 'acceptance';
         }
 
-        // 4. Default to production (safest - no gate)
-        return 'production';
+        // 4. Default to testing (gated) — sites must be explicitly promoted to production
+        return 'testing';
     }
 
     /**
@@ -137,6 +163,13 @@ class EnvironmentGate
             return true;
         }
 
+        // Component-granted access: another plugin (e.g. the gAnalyze access-code
+        // gate) may admit a visitor to its own gated surface without a site-wide
+        // viewkey. Default false keeps the gate closed unless explicitly opened.
+        if (apply_filters('gtemplate_environment_gate_grant_access', false, $this->environment)) {
+            return true;
+        }
+
         return false;
     }
 
@@ -158,97 +191,40 @@ class EnvironmentGate
     }
 
     /**
-     * Validate a viewkey
+     * Validate a viewkey via the canonical gCore ViewKeyGate primitive.
      */
     public function validateViewkey(string $input): bool
     {
-        $viewkey = $this->getViewkey();
-        if (empty($viewkey)) {
-            return false;
-        }
-
-        // Constant-time comparison to prevent timing attacks
-        return hash_equals($viewkey, $input);
+        return ViewKeyGate::validate((string) $this->getViewkey(), $input);
     }
 
     /**
-     * Check if visitor has valid viewkey cookie
+     * Check if visitor has valid viewkey cookie.
      */
     public function hasValidViewkeyCookie(): bool
     {
-        if (!isset($_COOKIE[self::COOKIE_NAME])) {
-            return false;
-        }
-
-        $cookie_value = $_COOKIE[self::COOKIE_NAME];
-        $viewkey = $this->getViewkey();
-
-        if (empty($viewkey)) {
-            return false;
-        }
-
-        // Cookie stores hashed viewkey for security
-        $expected_hash = $this->hashViewkey($viewkey);
-        return hash_equals($expected_hash, $cookie_value);
+        return ViewKeyGate::cookieMatches(self::COOKIE_NAME, (string) $this->getViewkey());
     }
 
     /**
-     * Set viewkey cookie
+     * Set viewkey cookie.
      */
     public function setViewkeyCookie(): void
     {
         $viewkey = $this->getViewkey();
-        if (empty($viewkey)) {
+        if ($viewkey === null || $viewkey === '') {
             return;
         }
-
-        $expiry = $this->config['security']['viewkey_expiry'] ?? self::DEFAULT_EXPIRY;
-        $hash = $this->hashViewkey($viewkey);
-
-        setcookie(
-            self::COOKIE_NAME,
-            $hash,
-            [
-                'expires' => time() + $expiry,
-                'path' => '/',
-                'secure' => is_ssl(),
-                'httponly' => true,
-                'samesite' => 'Lax'
-            ]
-        );
-
-        // Also set in $_COOKIE for immediate access
-        $_COOKIE[self::COOKIE_NAME] = $hash;
+        $expiry = (int) ($this->config['security']['viewkey_expiry'] ?? self::DEFAULT_EXPIRY);
+        ViewKeyGate::setCookie(self::COOKIE_NAME, $viewkey, $expiry);
     }
 
     /**
-     * Clear viewkey cookie
+     * Clear viewkey cookie.
      */
     public function clearViewkeyCookie(): void
     {
-        setcookie(
-            self::COOKIE_NAME,
-            '',
-            [
-                'expires' => time() - 3600,
-                'path' => '/',
-                'secure' => is_ssl(),
-                'httponly' => true,
-                'samesite' => 'Lax'
-            ]
-        );
-
-        unset($_COOKIE[self::COOKIE_NAME]);
-    }
-
-    /**
-     * Hash viewkey for cookie storage
-     */
-    private function hashViewkey(string $viewkey): string
-    {
-        // Use site URL as salt for per-site uniqueness
-        $salt = parse_url(get_site_url(), PHP_URL_HOST) ?? 'gtemplate';
-        return hash('sha256', $viewkey . $salt);
+        ViewKeyGate::clearCookie(self::COOKIE_NAME);
     }
 
     /**
@@ -312,7 +288,12 @@ function handle_viewkey_submission(): void
     // Handle logout
     if (isset($_POST['gtemplate_viewkey_logout'])) {
         $gate->clearViewkeyCookie();
-        wp_redirect(home_url());
+        // Commit 1.11.d: wp_safe_redirect over wp_redirect.
+        // home_url() is always same-origin so this site was already
+        // safe in practice — but switching to wp_safe_redirect is the
+        // canonical pattern + matches the cleanup at the login site
+        // below.
+        wp_safe_redirect(home_url());
         exit;
     }
 
@@ -323,9 +304,15 @@ function handle_viewkey_submission(): void
         if ($gate->validateViewkey($input)) {
             $gate->setViewkeyCookie();
 
-            // Redirect to requested page or home
+            // Commit 1.11.d: wp_safe_redirect enforces WP's
+            // allowed-hosts list (same-origin by default + anything an
+            // admin registers via the `allowed_redirect_hosts` filter).
+            // Pre-fix wp_redirect accepted any URL that passed
+            // esc_url_raw's scheme check — viewkey-authenticated user
+            // could be redirected to an attacker-controlled host
+            // for phishing.
             $redirect = isset($_POST['redirect_to']) ? esc_url_raw($_POST['redirect_to']) : home_url();
-            wp_redirect($redirect);
+            wp_safe_redirect($redirect);
             exit;
         } else {
             // Invalid viewkey - will show error on gate screen
@@ -449,7 +436,7 @@ function render_gate_screen(): void
             color: #fff;
             font-size: 16px;
             outline: none;
-            transition: all 0.3s ease;
+            transition: border-color 0.3s ease, background-color 0.3s ease;
         }
 
         .gate-input::placeholder {
@@ -471,7 +458,7 @@ function render_gate_screen(): void
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
         .gate-button:hover {
@@ -597,7 +584,7 @@ function render_gate_screen(): void
         </a>
 
         <div class="gate-footer">
-            Powered by gTemplate &bull; Geodinium Stack
+            Powered by gTemplate &bull; Geodineum Stack
         </div>
     </div>
 </body>
@@ -683,6 +670,23 @@ function init_environment_gate(): void
     // Skip for wp-login.php and wp-register.php
     global $pagenow;
     if (in_array($pagenow, ['wp-login.php', 'wp-register.php'], true)) {
+        return;
+    }
+
+    // Skip for PWA assets (service worker, manifest). These MUST be served
+    // as JS/JSON to all visitors — including unauthenticated ones — so the
+    // service worker can install and PWA install prompts work. Without this
+    // exemption the gate's render_gate_screen (template_redirect priority 1)
+    // beats pwa-rewrite's handler (priority 10), the browser receives the
+    // gate HTML at /sw.js, and SW registration fails for everyone with a
+    // wrong Content-Type. Filterable so other components can extend.
+    $request_path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
+    $exempt_paths = apply_filters('gtemplate_gate_exempt_paths', [
+        '/sw.js',
+        '/manifest.json',
+        '/manifest.webmanifest',
+    ]);
+    if (in_array($request_path, $exempt_paths, true)) {
         return;
     }
 

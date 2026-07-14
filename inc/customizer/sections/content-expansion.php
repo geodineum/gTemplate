@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Customizer Section: Content Expansion Options
  *
@@ -19,10 +20,12 @@ if (!defined('ABSPATH')) exit;
  */
 function gtemplate_customizer_content_expansion($wp_customize) {
 
-    // ZOOM functionality of main content area (also called: Content Expansion Options) SECTION
+    // One Content section: expansion/zoom behavior + post-overlay display
+    // (post-overlay.php registers its controls here too)
     $wp_customize->add_section('gCore_content_options', array(
-        'title' => __('Content Expansion Options', 'gtemplate'),
-        'priority' => 300,
+        'title' => __('Content Display', 'gtemplate'),
+        'description' => __('How content is shown on the page: expansion/zoom behavior and the expanded post overlay.', 'gtemplate'),
+        'priority' => 30,
     ));
 
     // INDEX OF SECTION: ZOOM (Content Expansion Options)
@@ -110,6 +113,24 @@ function gtemplate_customizer_content_expansion($wp_customize) {
             'min' => 500,
             'max' => 2000,
             'step' => 50,
+        ),
+    ));
+
+    // Content overlay desktop width
+    $wp_customize->add_setting('content_overlay_desktop_width', array(
+        'default' => '70',
+        'sanitize_callback' => 'absint',
+        'transport' => 'refresh',
+    ));
+    $wp_customize->add_control('content_overlay_desktop_width', array(
+        'label' => __('Content Overlay Width — Desktop (%)', 'gtemplate'),
+        'description' => __('Width of the content overlay panel on desktop screens (mobile always uses 100%).', 'gtemplate'),
+        'section' => 'gCore_content_options',
+        'type' => 'range',
+        'input_attrs' => array(
+            'min' => 40,
+            'max' => 100,
+            'step' => 5,
         ),
     ));
 }

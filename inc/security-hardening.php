@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * gTemplate Security Hardening
  *
@@ -142,18 +143,54 @@ add_action('send_headers', function() {
     header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()');
 
     // Content Security Policy
-    // Start permissive, tighten based on site needs
+    //
+    // Each directive starts with safe defaults, then applies child-theme filters.
+    // Child themes add CDN origins via e.g.:
+    //   add_filter('gtemplate_csp_script_src', fn($s) => [...$s, 'https://cdn.example.com']);
+    //
+    // Filter contract: receives array of CSP source expressions, returns array.
+    // Default sources always include 'self'. Child themes append, never replace.
+
+    // Commit 1.11.d: drop `'unsafe-eval'` from the FRONTEND
+    // CSP. The send_headers handler is gated on `!is_admin()` (L88
+    // above), so this CSP applies to public pages — which don't need
+    // eval(). The customizer (which DOES need eval for live preview)
+    // runs in /wp-admin and is unaffected.
+    //
+    // 'unsafe-inline' retained for now — removing it requires nonce-
+    // ifying every theme inline script and is a Tier-2 hardening pass
+    // (CSP nonce wave). Tracking the inline removal as a follow-up TODO.
+    $script_src  = apply_filters('gtemplate_csp_script_src', [
+        "'self'", "'unsafe-inline'",  // 'unsafe-eval' deliberately dropped
+    ]);
+
+    $style_src = apply_filters('gtemplate_csp_style_src', [
+        "'self'", "'unsafe-inline'", 'https://fonts.googleapis.com',
+    ]);
+
+    $font_src = apply_filters('gtemplate_csp_font_src', [
+        "'self'", 'data:', 'https://fonts.gstatic.com',
+    ]);
+
+    $img_src = apply_filters('gtemplate_csp_img_src', [
+        "'self'", 'data:', 'https:',
+    ]);
+
+    $connect_src = apply_filters('gtemplate_csp_connect_src', [
+        "'self'", 'wss:', 'https:',
+    ]);
+
     $csp_directives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // Required for WordPress/customizer
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Required for inline styles + Google Fonts
-        "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Explicit style element policy
-        "img-src 'self' data: https:",                       // Allow images from HTTPS sources
-        "font-src 'self' data: https://fonts.gstatic.com",   // Allow fonts including Google Fonts
-        "connect-src 'self' wss: https:",                    // Allow WebSocket and HTTPS connections
-        "frame-ancestors 'self'",                            // Prevent framing (CSP version of X-Frame-Options)
-        "base-uri 'self'",                                   // Restrict base tag
-        "form-action 'self'",                                // Restrict form submissions
+        'script-src '    . implode(' ', array_unique($script_src)),
+        'style-src '     . implode(' ', array_unique($style_src)),
+        'style-src-elem ' . implode(' ', array_unique($style_src)),
+        'img-src '       . implode(' ', array_unique($img_src)),
+        'font-src '      . implode(' ', array_unique($font_src)),
+        'connect-src '   . implode(' ', array_unique($connect_src)),
+        "frame-ancestors 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
     ];
 
     header('Content-Security-Policy: ' . implode('; ', $csp_directives));
@@ -230,7 +267,7 @@ add_filter('option_users_can_register', function($value) {
  */
 add_action('wp_login_failed', function($username) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    error_log(sprintf(
+    gtemplate_track_error(sprintf(
         '[gTemplate Security] Failed login attempt for user "%s" from IP %s',
         sanitize_user($username),
         $ip

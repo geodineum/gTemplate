@@ -1,0 +1,38 @@
+# gTemplate — config_schema
+#
+# gTemplate is a rendering library consumed via gCore filters; it is not
+# a daemon. Its config_schema is published at install time by the
+# `geodineum` CLI one-shot, not on a per-request basis.
+
+component: gtemplate
+entries:
+  - key: GTEMPLATE_CACHE_TTL
+    type: int
+    default: 3600
+    mutable: true
+    description: >-
+      Template-render cache TTL (seconds). 0 disables template caching
+      entirely (useful in dev, never in production).
+
+  - key: GTEMPLATE_DEBUG
+    type: bool
+    default: false
+    mutable: true
+    capability: manage_options
+    description: Enables template-DAG trace logging.
+
+  - key: GTEMPLATE_FRAGMENT_CACHE
+    type: bool
+    default: true
+    mutable: true
+    description: >-
+      Toggle ESI-style fragment caching for personalized render paths.
+      Off = every render computes end-to-end.
+
+  - key: GTEMPLATE_MAX_DEPTH
+    type: int
+    default: 16
+    mutable: false
+    description: >-
+      Maximum nested-partial depth the DAG-walker will follow before
+      bailing with a cycle error.

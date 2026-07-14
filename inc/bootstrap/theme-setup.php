@@ -1,6 +1,7 @@
 <?php
+declare(strict_types=1);
 /**
- * gTemplate-wp Theme Setup
+ * gTemplate Theme Setup
  *
  * Registers theme support features, navigation menus, and performs
  * initial WordPress configuration cleanup.

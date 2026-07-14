@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * gTemplate Performance Optimizations
  *
@@ -85,21 +86,49 @@ function gtemplate_optimize_block_styles() {
         return;
     }
 
-    // Remove block library CSS
+    // Remove block library CSS (external and inline)
     wp_dequeue_style('wp-block-library');
+    wp_deregister_style('wp-block-library');
     wp_dequeue_style('wp-block-library-theme');
+    wp_deregister_style('wp-block-library-theme');
 
     // Remove WooCommerce block styles if present
     wp_dequeue_style('wc-blocks-style');
     wp_dequeue_style('wc-block-style');
 
-    // Remove global styles (inline CSS from theme.json)
+    // Remove global styles (inline CSS from theme.json / Gutenberg)
     wp_dequeue_style('global-styles');
+    wp_deregister_style('global-styles');
 
-    // Remove classic theme styles (button styles, etc.)
+    // Remove classic theme styles (button reset styles, etc.)
     wp_dequeue_style('classic-theme-styles');
+    wp_deregister_style('classic-theme-styles');
 }
 add_action('wp_enqueue_scripts', 'gtemplate_optimize_block_styles', 100);
+
+/**
+ * Belt-and-suspenders: remove WP bloat styles that survive dequeue
+ *
+ * WordPress 6.x can re-add global-styles and classic-theme-styles as inline
+ * output after wp_enqueue_scripts runs. Hooking wp_print_styles at a late
+ * priority catches anything re-registered between enqueue and print.
+ */
+function gtemplate_remove_residual_block_styles() {
+    if (defined('GTEMPLATE_USE_GUTENBERG_BLOCKS') && GTEMPLATE_USE_GUTENBERG_BLOCKS) {
+        return;
+    }
+    if (gtemplate_page_uses_blocks()) {
+        return;
+    }
+
+    wp_dequeue_style('global-styles');
+    wp_deregister_style('global-styles');
+    wp_dequeue_style('classic-theme-styles');
+    wp_deregister_style('classic-theme-styles');
+    wp_dequeue_style('wp-block-library');
+    wp_deregister_style('wp-block-library');
+}
+add_action('wp_print_styles', 'gtemplate_remove_residual_block_styles', 100);
 
 /**
  * Check if current page content uses Gutenberg blocks
@@ -353,8 +382,11 @@ function gtemplate_preload_critical_assets() {
     $theme_uri = get_template_directory_uri();
     $version = wp_get_theme()->get('Version');
 
-    // Preload main theme CSS (critical for above-the-fold rendering)
-    echo '<link rel="preload" href="' . esc_url($theme_uri . '/assets/css/style.css?ver=' . $version) . '" as="style">' . "\n";
+    // Preload main theme CSS (only if file exists — child themes provide their own)
+    $css_path = get_template_directory() . '/assets/css/style.css';
+    if (file_exists($css_path)) {
+        echo '<link rel="preload" href="' . esc_url($theme_uri . '/assets/css/style.css?ver=' . $version) . '" as="style">' . "\n";
+    }
 }
 add_action('wp_head', 'gtemplate_preload_critical_assets', 1);
 

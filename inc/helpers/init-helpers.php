@@ -1,6 +1,7 @@
 <?php
+declare(strict_types=1);
 /**
- * gTemplate-wp Initialization Helper Functions
+ * gTemplate Initialization Helper Functions
  *
  * Core utility functions shared by all Geodineum child themes.
  * Functions use gtemplate_ prefix but behavior is theme-agnostic.
@@ -11,6 +12,47 @@
 
 if (!defined('ABSPATH')) {
     exit;
+}
+
+/**
+ * Track an error/warning/info event through the gCore ErrorManager when
+ * available, with a graceful fallback to error_log() for early-init paths
+ * (and for any environment where gCore isn't loaded — free-tier themes,
+ * activation hooks, fatal-during-bootstrap scenarios).
+ *
+ * Replaces the ~100 raw error_log() call sites that previously bypassed
+ * the framework's structured error pipeline (ROADMAP §B.2). With
+ * ErrorManager wired, gTemplate's PHP-side errors land in ValKey, get
+ * categorized by severity, and become visible to gDash + admin
+ * notifications.
+ *
+ * @param string $message  Human-readable error message (free-form;
+ *                         existing "gTemplate: ..." / "[gTemplate] ..."
+ *                         prefixes are preserved as-is for journal
+ *                         continuity)
+ * @param array  $context  Optional structured context (request_id,
+ *                         site_id, hook_name, exception_class, …).
+ *                         ErrorManager indexes by these keys.
+ * @param string $level    Severity. 'INFO' / 'WARNING' (default) /
+ *                         'ERROR' / 'CRITICAL'. Mirrors PSR-3 levels.
+ */
+function gtemplate_track_error(string $message, array $context = [], string $level = 'WARNING'): void {
+    global $gCore;
+    try {
+        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('ErrorManager')) {
+            $em = $gCore->getService('ErrorManager');
+            if ($em && method_exists($em, 'trackError')) {
+                $em->trackError($level, $message, $context);
+                return;
+            }
+        }
+    } catch (\Throwable $_) {
+        // Never let the error tracker itself raise — fall through.
+    }
+    // Fallback: write the message verbatim (no double-prefix) so the
+    // resulting log line matches what the call site would have emitted
+    // before the helper existed.
+    error_log($message);
 }
 
 /**
@@ -53,7 +95,7 @@ function gtemplate_get_face_prefix(): string {
 }
 
 /**
- * Get REST API namespace (e.g., 'gcube/v1', 'gtesseract/v1')
+ * Get REST API namespace (e.g., 'gcube/v1', 'childtheme/v1')
  *
  * @return string REST namespace
  */
@@ -66,7 +108,7 @@ function gtemplate_get_rest_namespace(): string {
 }
 
 /**
- * Get the theme prefix (e.g., 'gcube', 'gtesseract')
+ * Get the theme prefix (e.g., 'gcube', 'childtheme')
  *
  * @return string Theme prefix
  */
@@ -81,7 +123,7 @@ function gtemplate_get_theme_prefix(): string {
 /**
  * Get site ID from config or auto-detect from domain
  *
- * @return string Site ID (e.g., "staging_nierto_com")
+ * @return string Site ID (e.g., "your_site")
  */
 function gtemplate_get_site_id(): string {
     static $site_id = null;
@@ -107,6 +149,7 @@ function gtemplate_get_site_id(): string {
  * @param string $level   Log level: 'DEBUG', 'INFO', 'WARNING', 'ERROR'
  * @param array  $context Optional context data
  */
+if (!function_exists('geodineum_log')) {
 function geodineum_log(string $message, string $level = 'INFO', array $context = []): void {
     $level = strtoupper($level);
     $validLevels = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
@@ -118,10 +161,11 @@ function geodineum_log(string $message, string $level = 'INFO', array $context =
     $contextStr = !empty($context) ? ' ' . json_encode($context) : '';
     $formatted = "[{$timestamp}] [{$level}] {$message}{$contextStr}\n";
 
-    $theme_prefix = gtemplate_get_theme_prefix();
+    // Use theme-aware prefix if available (parent defines gtemplate_get_theme_prefix)
+    $theme_prefix = function_exists('gtemplate_get_theme_prefix') ? gtemplate_get_theme_prefix() : 'geodineum';
 
     if (defined('GEODINEUM_LOG_DIR')) {
-        $siteId = gtemplate_get_site_id();
+        $siteId = function_exists('gtemplate_get_site_id') ? gtemplate_get_site_id() : 'unknown';
         $logDir = GEODINEUM_LOG_DIR . '/themes/' . $theme_prefix . '/sites/' . $siteId;
 
         if (!is_dir($logDir)) {
@@ -137,21 +181,7 @@ function geodineum_log(string $message, string $level = 'INFO', array $context =
 
     error_log("[{$theme_prefix}] [{$level}] {$message}" . $contextStr);
 }
-
-/**
- * Get ValKey credentials from config with fallbacks
- *
- * @deprecated gCore handles all ValKey credential discovery internally.
- * @return array
- */
-function gtemplate_get_valkey_credentials(): array {
-    $site_id = gtemplate_get_site_id();
-    return [
-        'user' => 'gnode_client_' . $site_id,
-        'password' => null,
-        'password_file' => ''
-    ];
-}
+} // end function_exists('geodineum_log')
 
 /**
  * Detect DTAP environment from config or constants
@@ -160,73 +190,71 @@ function gtemplate_get_valkey_credentials(): array {
  */
 function gtemplate_detect_environment(): string {
     static $environment = null;
+    if ($environment !== null) {
+        return $environment;
+    }
 
-    if ($environment === null) {
-        $reg_config = gtemplate_get_registration_config();
-        $environment = $reg_config['metadata']['environment'] ?? null;
-
-        if (!$environment && defined('WP_ENVIRONMENT_TYPE')) {
-            $env_map = [
-                'development' => 'testing',
-                'local' => 'testing',
-                'staging' => 'staging',
-                'acceptance' => 'acceptance',
-                'production' => 'production'
-            ];
-            $environment = $env_map[WP_ENVIRONMENT_TYPE] ?? 'production';
-        }
-
-        if (!$environment) {
-            $environment = 'production';
+    // Authoritative: active_environment in ValKey (written by `geodineum env
+    // set`), read via gCore over the site's ACL-scoped connection. A switch
+    // takes effect instantly — no config-file edit, no cache bust, no wp-config
+    // vs .geodineum drift. Only an authoritative hit is memoised; a miss falls
+    // through to the file and is NOT cached, so a later call (once gCore/ValKey
+    // is up) can still pick up the live value.
+    if (function_exists('gcore_site_active_environment')) {
+        $vk = gcore_site_active_environment();
+        if ($vk) {
+            $environment = $vk;
+            return $environment;
         }
     }
 
-    return $environment;
+    // Bootstrap fallback: config file → WP_ENVIRONMENT_TYPE → production.
+    $reg_config = gtemplate_get_registration_config();
+    $env = $reg_config['metadata']['environment'] ?? null;
+    if (!$env && defined('WP_ENVIRONMENT_TYPE')) {
+        $env_map = [
+            'development' => 'testing',
+            'local' => 'testing',
+            'staging' => 'staging',
+            'acceptance' => 'acceptance',
+            'production' => 'production',
+        ];
+        $env = $env_map[WP_ENVIRONMENT_TYPE] ?? 'production';
+    }
+    return $env ?: 'production';
 }
 
 /**
- * Get gNode client from gCore
+ * Get client identifier for rate limiting.
  *
- * @deprecated Use $gCore->getService('gnode_client') directly.
- */
-function gtemplate_create_gnode_clients(string $environment): array {
-    global $gCore;
-
-    if (!$gCore) {
-        throw new \RuntimeException('gCore not initialized - cannot get gNode client');
-    }
-
-    $gNodeClient = $gCore->getService('gnode_client');
-
-    if (!$gNodeClient) {
-        throw new \RuntimeException('gNode client not available from gCore');
-    }
-
-    return [
-        'stream' => $gNodeClient,
-        'keybased' => $gNodeClient,
-        'storage' => $gNodeClient->getStorage()
-    ];
-}
-
-/**
- * Get client identifier for rate limiting
+ * Commit 1.11.d: XFF-spoof guard. Pre-fix unconditionally
+ * trusted `X-Forwarded-For` and `X-Real-IP`, so any direct-connect
+ * deployment let an attacker bypass the SecurityManager rate limit
+ * on /pages, /forms, /ai/chat etc. via `curl -H "X-Forwarded-For: …"`.
+ * Post-fix gates header trust on the operator-declared
+ * `GTEMPLATE_TRUST_PROXY` constant or env var. Mirrors gCube's
+ * `GCUBE_TRUST_PROXY` from Commit 1.8.b.
  *
  * @return string Client IP address or identifier
  */
 function gtemplate_get_client_identifier(): string {
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-        $ip = trim($ips[0]);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
+    $trust_proxy = (defined('GTEMPLATE_TRUST_PROXY') && GTEMPLATE_TRUST_PROXY)
+        || getenv('GTEMPLATE_TRUST_PROXY') === '1';
 
-    if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
-        $ip = trim($_SERVER['HTTP_X_REAL_IP']);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
+    if ($trust_proxy) {
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $ip = trim($ips[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            $ip = trim($_SERVER['HTTP_X_REAL_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
         }
     }
 
@@ -309,7 +337,7 @@ function gtemplate_inject_gnode_into_security_manager($gNodeClient): bool {
         return true;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Failed to inject gNode-Client into SecurityManager: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Failed to inject gNode-Client into SecurityManager: ' . $e->getMessage(), [], 'ERROR');
         return false;
     }
 }

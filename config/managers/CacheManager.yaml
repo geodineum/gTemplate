@@ -1,4 +1,4 @@
-# CacheManager Configuration for gCube (staging.nierto.com)
+# CacheManager Configuration for gCube (your-site.example)
 # ValKey-based caching with gNode integration
 
 enabled: true
@@ -10,7 +10,7 @@ adapters:
 
 config:
   debug: false
-  prefix: "{staging_nierto_com}:cache:"  # Site-specific prefix for multi-tenant isolation
+  prefix: "{your_site}:cache:"  # Site-specific prefix for multi-tenant isolation
   default_ttl: 3600  # 1 hour
   
   connection:
@@ -18,9 +18,9 @@ config:
     port: 47445  # Standard ValKey port (DO NOT hardcode 6379!)
     timeout: 0.5
     retry_interval: 100
-    prefix: "{staging_nierto_com}:cache:"
+    prefix: "{your_site}:cache:"
     auth:
-      user: gnode_client  # TODO: Change to gnode_client_staging_nierto_com in Phase 4
+      user: gnode_client  # TODO: Change to gnode_client_your_site in Phase 4
       password: null  # Read from /opt/.gnode/valkey_client.password
     database: 0
     persistent: true

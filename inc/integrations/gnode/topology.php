@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Topology Integration for gTemplate Theme
  *
  * Provides graceful topology/service mesh capabilities:
- * - Premium: Full gNode-based service discovery and registration
- * - Free-tier: Stub implementation with no-op operations
+ * - Extension: Full gNode-based service discovery and registration
+ * - Default: Stub implementation with no-op operations
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -30,14 +31,14 @@ function gtemplate_init_topology_integration($gNodeClient = null) {
     // This function provides additional setup if needed
 
     if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-        error_log('[gTemplate] Topology integration loaded');
+        gtemplate_track_error('[gTemplate] Topology integration loaded');
     }
 }
 
 /**
  * Get the TopologyManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\TopologyManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\TopologyManagerInterface|null
  */
 function gtemplate_get_topology_manager() {
     global $gCore;
@@ -49,7 +50,7 @@ function gtemplate_get_topology_manager() {
     try {
         return $gCore->getService('TopologyManager');
     } catch (\Throwable $e) {
-        error_log('[gTemplate] TopologyManager access failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] TopologyManager access failed: ' . $e->getMessage());
     }
 
     return null;
@@ -180,7 +181,7 @@ function gtemplate_get_topology_status(): array {
 }
 
 /**
- * Check if topology features are available (premium)
+ * Check if topology features are available (requires extension)
  *
  * @return bool
  */

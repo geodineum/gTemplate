@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * REST API Resource: Pages
  *
@@ -76,7 +77,7 @@ function gtemplate_rest_get_page($request) {
             }
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Page security validation failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Page security validation failed: ' . $e->getMessage());
     }
 
     // Check if page exists
@@ -120,7 +121,7 @@ function gtemplate_rest_get_page($request) {
             }
         } catch (\Throwable $e) {
             // Fall through to stream-based client
-            error_log("gTemplate: Key-based render failed for page {$page_id}: " . $e->getMessage());
+            gtemplate_track_error("gTemplate: Key-based render failed for page {$page_id}: " . $e->getMessage());
         }
     }
 
@@ -156,7 +157,7 @@ function gtemplate_rest_get_page($request) {
             ]);
         } else {
             // Template not registered - register now and retry
-            error_log("gTemplate: Template '{$template_id}' not found, registering now");
+            gtemplate_track_error("gTemplate: Template '{$template_id}' not found, registering now");
             gtemplate_register_page_template($page_id);
 
             // Retry render
@@ -176,7 +177,7 @@ function gtemplate_rest_get_page($request) {
         }
 
     } catch (\Throwable $e) {
-        error_log("gTemplate: gNode render failed for page {$page_id}: " . $e->getMessage());
+        gtemplate_track_error("gTemplate: gNode render failed for page {$page_id}: " . $e->getMessage());
 
         // TIER 3: Fallback to PHP rendering
         return new WP_REST_Response(

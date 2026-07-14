@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * OptimizationManager Integration for gTemplate
  *
@@ -37,7 +38,7 @@ function gtemplate_init_optimization_manager() {
     try {
         $opt = $gCore->getService('OptimizationManager');
         if (!$opt) {
-            error_log('gTemplate: OptimizationManager not available from gCore');
+            gtemplate_track_error('gTemplate: OptimizationManager not available from gCore');
             return null;
         }
 
@@ -84,11 +85,11 @@ function gtemplate_init_optimization_manager() {
             ]
         ]);
 
-        error_log('gTemplate: OptimizationManager initialized successfully');
+        gtemplate_track_error('gTemplate: OptimizationManager initialized successfully');
         return $opt;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: OptimizationManager init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: OptimizationManager init error: ' . $e->getMessage());
         return null;
     }
 }
@@ -109,6 +110,8 @@ function gtemplate_get_optimization_manager() {
         $opt = $gCore->getService('OptimizationManager');
         return ($opt && $opt->isInitialized()) ? $opt : null;
     } catch (\Throwable $e) {
+        // Service-registry-not-ready (early init / late shutdown). Caller
+        // checks for null and degrades gracefully; logging would be noise.
         return null;
     }
 }
@@ -146,47 +149,17 @@ function gtemplate_update_optimization_config(array $config): bool {
             $opt->updateConfig($config);
             return true;
         } catch (\Throwable $e) {
-            error_log('gTemplate: Optimization config update failed: ' . $e->getMessage());
+            gtemplate_track_error('gTemplate: Optimization config update failed: ' . $e->getMessage());
         }
     }
 
     return false;
 }
 
-/**
- * Add gTemplate-specific security headers
- *
- * Supplements OptimizationManager's security headers with gTemplate-specific policies.
- */
-add_action('send_headers', function() {
-    // Only on frontend, not admin
-    if (is_admin()) {
-        return;
-    }
-
-    // Content Security Policy for 3D cube (allows inline styles for transforms)
-    // Note: This is a baseline CSP - adjust based on your specific needs
-    $csp_directives = [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'", // HTMX requires inline handlers
-        "style-src 'self' 'unsafe-inline'", // CSS transforms use inline styles
-        "img-src 'self' data: https:", // Allow data URIs and HTTPS images
-        "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self'", // HTMX AJAX calls
-        "frame-ancestors 'self'", // Prevent clickjacking
-    ];
-
-    // Only set CSP in production (can interfere with dev tools)
-    if (!defined('WP_DEBUG') || !WP_DEBUG) {
-        header('Content-Security-Policy: ' . implode('; ', $csp_directives));
-    }
-
-    // Referrer policy for privacy
-    header('Referrer-Policy: strict-origin-when-cross-origin');
-
-    // Permissions policy (restrict dangerous features)
-    header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()');
-}, 1);
+// CSP, Referrer-Policy, and Permissions-Policy are now handled by
+// security-hardening.php with filterable directives (gtemplate_csp_*).
+// Child themes add CDN origins via those filters.
+// Duplicate headers removed — see inc/security-hardening.php.
 
 /**
  * Add performance timing headers for debugging
@@ -262,14 +235,17 @@ add_action('send_headers', function() {
     $theme_uri = get_template_directory_uri();
     $version = wp_get_theme()->get('Version');
 
-    // Critical resources for 3D cube
-    $push_resources = [
-        $theme_uri . '/assets/css/theme.css?ver=' . $version => 'style',
-        $theme_uri . '/assets/js/theme.js?ver=' . $version => 'script',
+    // Critical resources (only push if files exist — child themes provide their own)
+    $theme_dir = get_template_directory();
+    $push_candidates = [
+        'assets/css/theme.css' => 'style',
+        'assets/js/theme.js' => 'script',
     ];
 
-    foreach ($push_resources as $url => $type) {
-        // Link header format for HTTP/2 push hints
-        header("Link: <{$url}>; rel=preload; as={$type}", false);
+    foreach ($push_candidates as $path => $type) {
+        if (file_exists($theme_dir . '/' . $path)) {
+            $url = $theme_uri . '/' . $path . '?ver=' . $version;
+            header("Link: <{$url}>; rel=preload; as={$type}", false);
+        }
     }
 }, 2);

@@ -1,22 +1,25 @@
 <?php
+declare(strict_types=1);
 /**
- * gNodeConfigLoader - High-performance configuration loader with caching
+ * gNodeConfigLoader - Constellation-aware configuration loader
  *
- * Eliminates per-request YAML parsing overhead by caching configuration
- * in APCu (shared across workers) with automatic refresh on file changes.
+ * Four-tier caching with distributed ValKey support:
+ *   Tier 1: Static (per-request in-memory) — instant
+ *   Tier 2: APCu (cross-request shared memory) + constellation generation check — ~0.01ms
+ *   Tier 3: ValKey (distributed, cross-server) — ~0.1ms
+ *   Tier 4: YAML file parsing — ~2-5ms
  *
- * Performance:
- * - First request: ~2-5ms (YAML parse + cache store)
- * - Subsequent requests: ~0.01ms (APCu fetch)
- * - File change detection: ~0.1ms (stat() call)
+ * The "constellation generation" counter in ValKey enables instant cache
+ * invalidation without TTL expiry when config changes on any node.
  *
- * Cache invalidation:
- * - Automatic: File mtime change detected
- * - Manual: gNodeConfigLoader::invalidate()
- * - TTL-based: Configurable max age (default 300s)
+ * Lower tiers backfill upper tiers on success (YAML → ValKey + APCu).
+ * ValKey failure is always silent — falls through to YAML.
+ *
+ * This class lives in gTemplate (parent theme). Child themes (gCube,
+ * custom) use it via namespace alias — no duplication.
  *
  * @package gTemplate
- * @since 1.2.0
+ * @since 2.0.0
  */
 
 namespace gTemplate;
@@ -32,87 +35,155 @@ class gNodeConfigLoader
     /** @var string|null Path to loaded config file */
     private static ?string $configPath = null;
 
+    /** @var \Redis|null|false Bootstrap ValKey connection (null=untried, false=failed) */
+    private static $bootstrapValKey = null;
+
+    /** @var int|null Cached constellation generation (per-request) */
+    private static ?int $cachedGeneration = null;
+
     /** @var int Cache TTL in seconds */
     private const CACHE_TTL = 300;
 
     /** @var string APCu cache key prefix */
     private const CACHE_PREFIX = 'gtemplate_config_';
 
+    /** ValKey connection timeout (fail fast) */
+    private const VALKEY_TIMEOUT = 0.5;
+
+    /** ValKey read timeout */
+    private const VALKEY_READ_TIMEOUT = 0.5;
+
+    /** Persistent connection ID for FPM worker reuse */
+    private const VALKEY_PERSISTENT_ID = 'gtemplate_config';
+
     /**
-     * Get configuration with intelligent caching
+     * Get configuration with four-tier caching
      *
      * Cache hierarchy:
-     * 1. Static (in-memory, same request) - instant
-     * 2. APCu (shared memory, cross-request) - ~0.01ms
-     * 3. File (YAML parse) - ~2-5ms
+     * 1. Static (in-memory, same request) — instant
+     * 2. APCu (shared memory, cross-request) + constellation generation check — ~0.01ms
+     * 3. ValKey (distributed, cross-server) — ~0.1ms
+     * 4. YAML file parsing — ~2-5ms
      *
-     * @param bool $forceRefresh Force reload from file
+     * @param bool $forceRefresh Force reload from all caches
      * @return array Configuration array
      */
     public static function get(bool $forceRefresh = false): array
     {
-        // Level 1: Static cache (same request)
+        // Tier 1: Static cache (same request)
         if (self::$config !== null && !$forceRefresh) {
             return self::$config;
         }
 
         $cacheKey = self::getCacheKey();
 
-        // Level 2: APCu cache (cross-request)
+        // Tier 2: APCu cache + constellation generation freshness
         if (!$forceRefresh && function_exists('apcu_fetch')) {
             $cached = apcu_fetch($cacheKey, $success);
-            if ($success && is_array($cached)) {
-                // Validate cache freshness via file mtime
-                if (self::isCacheFresh($cached)) {
-                    self::$config = $cached['config'];
-                    self::$configMtime = $cached['mtime'];
-                    self::$configPath = $cached['path'];
-                    return self::$config;
-                }
+            if ($success && is_array($cached) && self::isGenerationFresh($cached) && self::isCacheFresh($cached)) {
+                self::$config = $cached['config'];
+                self::$configMtime = $cached['mtime'] ?? null;
+                self::$configPath = $cached['path'] ?? null;
+                return self::$config;
             }
         }
 
-        // Level 3: Load from file
-        return self::loadFromFile();
+        // Tier 3: ValKey (distributed cache — enables constellation-wide config)
+        $siteId = self::deriveSiteId();
+        $config = self::loadFromValKey($siteId);
+        if ($config !== null) {
+            self::$config = $config;
+            self::storeInCache($config, self::$configPath ?? '', self::$configMtime ?? 0);
+            return $config;
+        }
+
+        // Tier 4: Load from YAML file
+        $config = self::loadFromFile();
+
+        // Backfill ValKey for other constellation nodes
+        self::storeToValKey($config, $siteId);
+
+        return $config;
     }
 
     /**
-     * Load configuration from YAML file
+     * Load configuration from YAML file.
+     *
+     * YAML parse + env-var resolution is delegated to
+     * gCore\Modules\Core\Utils\ConfigLoader (its `load()` with
+     * `useCache=false` runs Tier-4-only — parse + resolveEnvVars —
+     * skipping the compiled-section cache tiers that don't apply to
+     * arbitrary files like wp-config-geodineum.yaml). When gCore is
+     * unreachable (free-tier installs, bootstrap-fatal scenarios) the
+     * helper falls back to a direct yaml_parse_file call so the loader
+     * keeps working without the framework. ROADMAP §B.1 partial
+     * closure — the constellation-aware APCu+ValKey caching machinery
+     * below remains parallel to gCore ConfigLoader's compiled-section
+     * cache; full unification (extracting a shared ConfigCache
+     * primitive that both loaders share) is the §B.1.b post-launch
+     * follow-up.
      *
      * @return array Configuration array
      */
     private static function loadFromFile(): array
     {
-        $locations = self::getConfigLocations();
-
-        foreach ($locations as $configFile) {
-            if (file_exists($configFile)) {
-                $config = yaml_parse_file($configFile);
-
-                if ($config !== false && is_array($config)) {
-                    // Auto-fill defaults
-                    $config = self::applyDefaults($config);
-
-                    // Get file mtime for cache validation
-                    $mtime = filemtime($configFile);
-
-                    // Store in static cache
-                    self::$config = $config;
-                    self::$configMtime = $mtime;
-                    self::$configPath = $configFile;
-
-                    // Store in APCu cache
-                    self::storeInCache($config, $configFile, $mtime);
-
-                    return $config;
+        static $coreLoader = null;
+        if ($coreLoader === null) {
+            $coreLoaderClass = '\\gCore\\Modules\\Core\\Utils\\ConfigLoader';
+            if (class_exists($coreLoaderClass)) {
+                try {
+                    $coreLoader = new $coreLoaderClass();
+                } catch (\Throwable $_) {
+                    $coreLoader = false;
                 }
+            } else {
+                $coreLoader = false;
             }
         }
 
-        // Fallback: auto-detected config
+        foreach (self::getConfigLocations() as $configFile) {
+            if (!file_exists($configFile)) {
+                continue;
+            }
+
+            $config = null;
+            if ($coreLoader && is_object($coreLoader) && method_exists($coreLoader, 'load')) {
+                try {
+                    // useCache=false → Tier-4-only path: yaml_parse_file +
+                    // resolveEnvVars. We run our own caching above this
+                    // call (constellation-aware APCu+ValKey).
+                    $config = $coreLoader->load($configFile, null, false);
+                } catch (\Throwable $e) {
+                    gtemplate_track_error(
+                        '[gTemplate gNodeConfigLoader] gCore ConfigLoader load failed for ' . $configFile . ': ' . $e->getMessage(),
+                        ['file' => $configFile],
+                        'WARNING'
+                    );
+                }
+            }
+            if (!is_array($config) && function_exists('yaml_parse_file')) {
+                $parsed = @yaml_parse_file($configFile);
+                if (is_array($parsed)) {
+                    $config = $parsed;
+                }
+            }
+
+            if (is_array($config)) {
+                $config = self::applyDefaults($config);
+                $mtime = (int) (@filemtime($configFile) ?: 0);
+
+                self::$config = $config;
+                self::$configMtime = $mtime;
+                self::$configPath = $configFile;
+
+                self::storeInCache($config, $configFile, $mtime);
+                return $config;
+            }
+        }
+
+        // Fallback: auto-detected config (no file found at any search location).
         $config = self::getAutoDetectedConfig();
         self::$config = $config;
-
         return $config;
     }
 
@@ -161,9 +232,9 @@ class gNodeConfigLoader
             $config['valkey']['user'] = 'gnode_client_' . $config['site_id'];
         }
 
-        // Auto-fill ValKey password file
+        // Auto-fill ValKey password file (centralized FHS path)
         if (empty($config['valkey']['password_file'])) {
-            $config['valkey']['password_file'] = '/opt/gNode/.gnode/valkey_client_' . $config['site_id'] . '.password';
+            $config['valkey']['password_file'] = '/etc/geodineum/credentials/valkey_client_' . $config['site_id'] . '.password';
         }
 
         return $config;
@@ -200,12 +271,12 @@ class gNodeConfigLoader
             'metadata' => [
                 'type' => 'wordpress-site',
                 'theme' => $themeName,
-                'environment' => defined('WP_ENVIRONMENT_TYPE') ? WP_ENVIRONMENT_TYPE : 'production',
+                'environment' => defined('WP_ENVIRONMENT_TYPE') ? WP_ENVIRONMENT_TYPE : 'testing',
                 'domain' => function_exists('get_site_url') ? get_site_url() : '',
             ],
             'valkey' => [
                 'user' => 'gnode_client_' . $siteId,
-                'password_file' => '/opt/gNode/.gnode/valkey_client_' . $siteId . '.password',
+                'password_file' => '/etc/geodineum/credentials/valkey_client_' . $siteId . '.password',
             ],
             '_auto_detected' => true,
         ];
@@ -239,7 +310,7 @@ class gNodeConfigLoader
     }
 
     /**
-     * Store config in APCu cache
+     * Store config in APCu cache with constellation generation tag
      *
      * @param array $config Config to cache
      * @param string $path Config file path
@@ -256,9 +327,204 @@ class gNodeConfigLoader
             'path' => $path,
             'mtime' => $mtime,
             'cached_at' => time(),
+            '_constellation_gen' => self::getConstellationGeneration() ?? 0,
         ];
 
         apcu_store(self::getCacheKey(), $cacheData, self::CACHE_TTL);
+    }
+
+    /**
+     * Check if APCu entry's constellation generation matches current
+     *
+     * @param array $cached Cached entry
+     * @return bool True if fresh (generation matches or ValKey unavailable)
+     */
+    private static function isGenerationFresh(array $cached): bool
+    {
+        if (!isset($cached['_constellation_gen'])) {
+            return false; // Old format — re-store with generation
+        }
+
+        $currentGen = self::getConstellationGeneration();
+        if ($currentGen === null) {
+            return true; // ValKey unavailable — trust APCu TTL
+        }
+
+        return $currentGen === $cached['_constellation_gen'];
+    }
+
+    // =========================================================================
+    // Tier 3: ValKey distributed cache (Geodineum Constellation)
+    // =========================================================================
+
+    /**
+     * Derive site ID from domain or env var (no config dependency)
+     *
+     * @return string Site identifier
+     */
+    private static function deriveSiteId(): string
+    {
+        $envSiteId = getenv('GCORE_SITE_ID');
+        if ($envSiteId !== false && $envSiteId !== '') {
+            return $envSiteId;
+        }
+
+        $domain = function_exists('get_site_url')
+            ? parse_url(get_site_url(), PHP_URL_HOST)
+            : ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+        return str_replace(['.', '-'], '_', $domain);
+    }
+
+    /**
+     * Get a bootstrap ValKey connection
+     *
+     * Uses ONLY env vars + credential files — NOT the config being loaded.
+     *
+     * @return \Redis|null Connection or null on failure
+     */
+    private static function getBootstrapValKey(): ?\Redis
+    {
+        if (self::$bootstrapValKey === false) {
+            return null;
+        }
+        if (self::$bootstrapValKey instanceof \Redis) {
+            return self::$bootstrapValKey;
+        }
+        if (!extension_loaded('redis')) {
+            self::$bootstrapValKey = false;
+            return null;
+        }
+
+        try {
+            $host = getenv('VALKEY_HOST') ?: '127.0.0.1';
+            $port = (int)(getenv('VALKEY_PORT') ?: 47445);
+            $siteId = self::deriveSiteId();
+
+            // Credential resolution: centralized → standard → legacy
+            $credDirs = [
+                '/etc/geodineum/credentials',
+                '/opt/geodineum/gNode/.gnode',
+                '/opt/gNode/.gnode',
+            ];
+            $password = null;
+            foreach ($credDirs as $dir) {
+                $file = $dir . '/valkey_client_' . $siteId . '.password';
+                if (file_exists($file) && is_readable($file)) {
+                    $password = trim(file_get_contents($file));
+                    break;
+                }
+            }
+            if ($password === null || $password === '') {
+                self::$bootstrapValKey = false;
+                return null;
+            }
+
+            $redis = new \Redis();
+            if (!$redis->pconnect($host, $port, self::VALKEY_TIMEOUT, self::VALKEY_PERSISTENT_ID)) {
+                self::$bootstrapValKey = false;
+                return null;
+            }
+
+            $redis->setOption(\Redis::OPT_READ_TIMEOUT, self::VALKEY_READ_TIMEOUT);
+
+            if (!$redis->auth(['gnode_client_' . $siteId, $password])) {
+                self::$bootstrapValKey = false;
+                return null;
+            }
+
+            self::$bootstrapValKey = $redis;
+            return $redis;
+        } catch (\Throwable $e) {
+            gtemplate_track_error('[gTemplate gNodeConfigLoader] bootstrap ValKey connection failed: ' . $e->getMessage());
+            self::$bootstrapValKey = false;
+            return null;
+        }
+    }
+
+    /**
+     * Load site config from ValKey
+     *
+     * Key: {site_id}:constellation:site_config
+     *
+     * @param string $siteId Site identifier
+     * @return array|null Config array or null
+     */
+    private static function loadFromValKey(string $siteId): ?array
+    {
+        $redis = self::getBootstrapValKey();
+        if ($redis === null) {
+            return null;
+        }
+
+        try {
+            // Hash-tagged for cluster co-location with sibling per-site
+            // keys (Ch.1.1 §C.6 follow-up: matches `{site_id}:constellation:generation`
+            // at line 475 + ecosystem convention).
+            $data = $redis->get('{' . $siteId . '}:constellation:site_config');
+            if ($data === false || $data === null) {
+                return null;
+            }
+            $config = json_decode($data, true);
+            return is_array($config) ? $config : null;
+        } catch (\Throwable $e) {
+            gtemplate_track_error('[gTemplate gNodeConfigLoader] loadFromValKey failed for site=' . $siteId . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Store site config to ValKey (backfill from YAML)
+     *
+     * Seeds ValKey for other constellation nodes.
+     *
+     * @param array $config Config data
+     * @param string $siteId Site identifier
+     */
+    private static function storeToValKey(array $config, string $siteId): void
+    {
+        $redis = self::getBootstrapValKey();
+        if ($redis === null) {
+            return;
+        }
+
+        try {
+            $json = json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($json !== false) {
+                // Hash-tagged for cluster co-location (matches read at L420
+                // + sibling `{site_id}:constellation:generation`).
+                $redis->set('{' . $siteId . '}:constellation:site_config', $json);
+            }
+        } catch (\Throwable $e) {
+            // Silent — ValKey is optional
+        }
+    }
+
+    /**
+     * Get constellation generation from ValKey (cached per-request)
+     *
+     * @return int|null Current generation or null if ValKey unavailable
+     */
+    private static function getConstellationGeneration(): ?int
+    {
+        if (self::$cachedGeneration !== null) {
+            return self::$cachedGeneration;
+        }
+
+        $redis = self::getBootstrapValKey();
+        if ($redis === null) {
+            return null;
+        }
+
+        try {
+            $siteId = self::deriveSiteId();
+            $gen = $redis->get('{' . $siteId . '}:constellation:generation');
+            self::$cachedGeneration = ($gen !== false && $gen !== null) ? (int)$gen : 0;
+            return self::$cachedGeneration;
+        } catch (\Throwable $e) {
+            gtemplate_track_error('[gTemplate gNodeConfigLoader] getConstellationGeneration failed for site=' . $siteId . ': ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
@@ -282,6 +548,8 @@ class gNodeConfigLoader
         self::$config = null;
         self::$configMtime = null;
         self::$configPath = null;
+        self::$cachedGeneration = null;
+        self::$bootstrapValKey = null;
 
         if (function_exists('apcu_delete')) {
             apcu_delete(self::getCacheKey());
@@ -364,6 +632,8 @@ class gNodeConfigLoader
             'config_path' => self::$configPath,
             'config_mtime' => self::$configMtime,
             'apcu_available' => function_exists('apcu_fetch'),
+            'valkey_available' => self::getBootstrapValKey() !== null,
+            'constellation_generation' => self::getConstellationGeneration(),
         ];
 
         if (function_exists('apcu_fetch')) {

@@ -8,10 +8,26 @@
  * - HTMX response handling
  * - Double-submit prevention
  *
- * @package gTesseract
+ * @package gTemplate
  */
 (function() {
     'use strict';
+
+    /**
+     * Resolve the theme's REST API base for this form. Prefers the
+     * server-rendered data-api-base attribute; falls back to stripping the
+     * known submit path off hx-post. Both carry the active theme's REST
+     * namespace, so no URL is hardcoded here.
+     * @param {HTMLFormElement} form The form element
+     * @returns {string} API base (e.g. /wp-json/gtemplate/v1) or ''
+     */
+    function getApiBase(form) {
+        if (form.dataset.apiBase) {
+            return form.dataset.apiBase.replace(/\/$/, '');
+        }
+        var hxPost = form.getAttribute('hx-post') || '';
+        return hxPost.replace(/\/(contact|form)\/submit(\?.*)?$/, '');
+    }
 
     /**
      * Refresh CSRF token from server
@@ -20,7 +36,11 @@
      * @returns {Promise<boolean>} Success status
      */
     function refreshCsrfToken(form) {
-        return fetch('/wp-json/gtesseract/v1/csrf-token', {
+        var apiBase = getApiBase(form);
+        if (!apiBase) {
+            return Promise.resolve(false);
+        }
+        return fetch(apiBase + '/csrf-token', {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
@@ -49,7 +69,6 @@
                         form.setAttribute('hx-headers', JSON.stringify({'X-CSRF-Token': data.token}));
                     }
                 }
-                console.log('[ContactForm] CSRF token refreshed (expires in ' + data.expires_in + 's)');
                 return true;
             }
             return false;
@@ -72,7 +91,6 @@
         var form = container.querySelector('form');
         if (!form) return;
 
-        console.log('[ContactForm] Initializing form for face:', faceId);
 
         // Mark as initialized
         container.dataset.initialized = 'true';
@@ -104,7 +122,6 @@
                 phoneEl.removeAttribute('data-p3');
                 phoneEl.removeAttribute('data-p4');
                 phoneEl.removeAttribute('data-display');
-                console.log('[ContactForm] Protected phone assembled');
             }
         });
 
@@ -166,7 +183,6 @@
                 charCountEl.textContent = this.value.length;
             }, { passive: true });
 
-            console.log('[ContactForm] Character counter initialized');
         }
 
         // Before submit, calculate and set behavior data
@@ -194,7 +210,6 @@
                 return false;
             }
             lastSubmit = now;
-            console.log('[ContactForm] Submitting form...');
         });
 
         // HTMX response handlers
@@ -202,10 +217,8 @@
             var status = container.querySelector('.form-status');
 
             if (evt.detail.successful) {
-                console.log('[ContactForm] Submission successful');
                 form.classList.add('submitted-success');
             } else if (evt.detail.xhr && evt.detail.xhr.status >= 400) {
-                console.log('[ContactForm] Submission error:', evt.detail.xhr.status);
                 form.classList.add('submitted-error');
                 if (status) {
                     try {
@@ -218,7 +231,6 @@
             }
         });
 
-        console.log('[ContactForm] Form initialized successfully');
     }
 
     /**
@@ -229,7 +241,6 @@
         containers.forEach(function(container) {
             initContactForm(container);
         });
-        console.log('[ContactForm] Found and initialized', containers.length, 'forms');
     }
 
     // Initialize on DOM ready

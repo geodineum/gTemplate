@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Runtime Configuration Integration for gTemplate
  *
@@ -65,7 +66,7 @@ function gtemplate_config_get(string $category, string $key, $default = null): ?
         return $result !== null ? (string) $result : $default;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config get error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config get error: ' . $e->getMessage());
         return $default;
     }
 }
@@ -95,7 +96,7 @@ function gtemplate_config_get_int(string $category, string $key, int $default = 
         return (int) $result;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config get_int error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config get_int error: ' . $e->getMessage());
         return $default;
     }
 }
@@ -141,7 +142,7 @@ function gtemplate_config_set(string $category, string $key, $value): bool {
         return $result === 1;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config set error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config set error: ' . $e->getMessage());
         return false;
     }
 }
@@ -177,7 +178,7 @@ function gtemplate_config_mset(string $category, array $values): int {
         return (int) $result;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config mset error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config mset error: ' . $e->getMessage());
         return 0;
     }
 }
@@ -213,7 +214,7 @@ function gtemplate_config_get_all(string $category): array {
         return $config;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config get_all error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config get_all error: ' . $e->getMessage());
         return [];
     }
 }
@@ -242,7 +243,7 @@ function gtemplate_config_delete(string $category, string $key): bool {
         return $result >= 0;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config delete error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config delete error: ' . $e->getMessage());
         return false;
     }
 }
@@ -270,7 +271,7 @@ function gtemplate_config_reset(string $category): bool {
         return $result === 1;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config reset error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config reset error: ' . $e->getMessage());
         return false;
     }
 }
@@ -291,7 +292,7 @@ function gtemplate_config_export(): ?string {
         $site_id = gtemplate_get_site_id();
         return $storage->fcall('GNODE_CONFIG_EXPORT', [], [$site_id]);
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config export error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config export error: ' . $e->getMessage());
         return null;
     }
 }
@@ -312,6 +313,7 @@ function gtemplate_config_list_categories(): array {
         $result = $storage->fcall('GNODE_CONFIG_LIST_CATEGORIES', [], []);
         return is_array($result) ? $result : [];
     } catch (\Throwable $e) {
+        gtemplate_track_error('[gTemplate config] GNODE_CONFIG_LIST_CATEGORIES failed (using hardcoded fallback): ' . $e->getMessage());
         return ['ratelimit', 'cache', 'security', 'features'];
     }
 }
@@ -345,7 +347,7 @@ function gtemplate_config_get_defaults(string $category): array {
         return $defaults;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config get_defaults error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config get_defaults error: ' . $e->getMessage());
         return [];
     }
 }
@@ -464,7 +466,7 @@ function gtemplate_config_seed(bool $force = false): array {
         return $results;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Config seed error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Config seed error: ' . $e->getMessage());
         return ['error' => $e->getMessage()];
     }
 }

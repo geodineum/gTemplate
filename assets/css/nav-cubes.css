@@ -1,0 +1,253 @@
+/**
+ * 3D Nav Cubes — Mini-cube navigation buttons
+ *
+ * Replaces flat nav buttons with 3D cubes that can show
+ * multiple faces of content and animate on navigation.
+ *
+ * Opt-in via: add_filter('gtemplate_nav_renderer', fn() => 'cube-3d');
+ *
+ * Child themes customize via CSS variables:
+ *   --nav-cube-size           Cube dimension (default: 4.5rem)
+ *   --nav-cube-size-mobile    Mobile cube dimension (default: 2.8rem)
+ *   --nav-cube-perspective    3D depth (default: 400px)
+ *   --nav-cube-bg             Face background
+ *   --nav-cube-border         Face border color
+ *   --nav-cube-blur           Backdrop blur (set 'none' for solid)
+ *   --nav-cube-text           Text color
+ *   --nav-cube-font-size      Label font size
+ *   --nav-cube-active-color   Active state accent
+ *   --nav-cube-hover-tilt     Hover rotation degrees (default: 15deg)
+ *   --nav-cube-default-rotate-y  Default Y angle — mirrored for right side (default: 0deg)
+ *   --nav-cube-default-rotate-x  Default X tilt — same both sides (default: 0deg)
+ *
+ * @package gTemplate
+ * @since 2.1.0
+ */
+
+/* === DEFAULTS === */
+:root {
+    --nav-cube-size: 4.5rem;
+    --nav-cube-size-mobile: min(13vw, 4rem);
+    --nav-cube-perspective: 400px;
+    --nav-cube-bg: rgba(0, 0, 0, 0.5);
+    --nav-cube-border: rgba(255, 255, 255, 0.15);
+    --nav-cube-blur: blur(5px);
+    --nav-cube-text: inherit;
+    --nav-cube-font-size: clamp(0.55rem, 1.5vmin, 0.8rem);
+    --nav-cube-active-color: var(--neon-pink, #ff0055);
+    --nav-cube-hover-tilt: 15deg;
+    --nav-cube-default-rotate-y: 0deg;
+    --nav-cube-default-rotate-x: 0deg;
+}
+
+/* === CUBE ITEM — flex child of .nav-layer === */
+.nav-cube-item {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform var(--transition-speed, 0.4s) ease;
+    margin: var(--nav-button-margin, 0);
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+    .nav-cube-item {
+        margin: var(--nav-button-margin-mobile, var(--nav-button-margin, 0));
+    }
+}
+
+.nav-cube-item:active {
+    transform: scale(0.95);
+}
+
+/* === SCENE — perspective container === */
+.nav-cube-scene {
+    width: var(--nav-cube-size);
+    height: var(--nav-cube-size);
+    perspective: var(--nav-cube-perspective);
+    perspective-origin: 50% 50%;
+}
+
+/* === CUBE — 3D transformed container === */
+.nav-cube {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform var(--transition-speed, 0.4s) ease;
+    /* Pull back by half so faces sit correctly, then apply default angle */
+    transform: translateZ(calc(var(--nav-cube-size) / -2))
+               rotateY(var(--nav-cube-default-rotate-y))
+               rotateX(var(--nav-cube-default-rotate-x));
+    will-change: transform;
+}
+
+/* Mirror the Y angle for right-side nav cubes */
+.nav-layer.right .nav-cube {
+    transform: translateZ(calc(var(--nav-cube-size) / -2))
+               rotateY(calc(var(--nav-cube-default-rotate-y) * -1))
+               rotateX(var(--nav-cube-default-rotate-x));
+}
+
+/* === FACES — six sides === */
+.nav-cube-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+
+    background: var(--nav-cube-bg);
+    border: 1px solid var(--nav-cube-border);
+    backdrop-filter: var(--nav-cube-blur);
+    -webkit-backdrop-filter: var(--nav-cube-blur);
+    color: var(--nav-cube-text);
+    font-size: var(--nav-cube-font-size);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-align: center;
+    padding: 0.3em;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Front face — always the label */
+.nav-cube-face.front {
+    font-weight: 600;
+}
+
+/* Non-front faces — slightly different styling for content */
+.nav-cube-face.back,
+.nav-cube-face.left,
+.nav-cube-face.right,
+.nav-cube-face.top,
+.nav-cube-face.bottom {
+    font-size: calc(var(--nav-cube-font-size) * 0.85);
+    opacity: 0.9;
+}
+
+/* === FACE POSITIONING === */
+.nav-cube-face.front  { transform: rotateY(0deg)    translateZ(calc(var(--nav-cube-size) / 2)); }
+.nav-cube-face.back   { transform: rotateY(180deg)  translateZ(calc(var(--nav-cube-size) / 2)); }
+.nav-cube-face.right  { transform: rotateY(90deg)   translateZ(calc(var(--nav-cube-size) / 2)); }
+.nav-cube-face.left   { transform: rotateY(-90deg)  translateZ(calc(var(--nav-cube-size) / 2)); }
+.nav-cube-face.top    { transform: rotateX(90deg)   translateZ(calc(var(--nav-cube-size) / 2)); }
+.nav-cube-face.bottom { transform: rotateX(-90deg)  translateZ(calc(var(--nav-cube-size) / 2)); }
+
+/* === HOVER — subtle peek at adjacent face === */
+.nav-cube-item:hover .nav-cube {
+    transform:
+        translateZ(calc(var(--nav-cube-size) / -2))
+        rotateY(calc(var(--nav-cube-default-rotate-y) + var(--nav-cube-hover-tilt) * -1))
+        rotateX(calc(var(--nav-cube-default-rotate-x) + var(--nav-cube-hover-tilt) * 0.6));
+}
+
+.nav-layer.right .nav-cube-item:hover .nav-cube {
+    transform:
+        translateZ(calc(var(--nav-cube-size) / -2))
+        rotateY(calc(var(--nav-cube-default-rotate-y) * -1 + var(--nav-cube-hover-tilt)))
+        rotateX(calc(var(--nav-cube-default-rotate-x) + var(--nav-cube-hover-tilt) * 0.6));
+}
+
+/* === ACTIVE STATE === */
+.nav-cube-item.active .nav-cube-face.front {
+    border-color: var(--nav-cube-active-color);
+    color: var(--nav-cube-active-color);
+    box-shadow: 0 0 10px var(--nav-cube-active-color) inset,
+                0 0 5px var(--nav-cube-active-color);
+}
+
+/* Active cube — slight rotate to reveal edge */
+.nav-cube-item.active .nav-cube {
+    transform:
+        translateZ(calc(var(--nav-cube-size) / -2))
+        rotateY(calc(var(--nav-cube-default-rotate-y) - 8deg));
+}
+
+.nav-layer.right .nav-cube-item.active .nav-cube {
+    transform:
+        translateZ(calc(var(--nav-cube-size) / -2))
+        rotateY(calc(var(--nav-cube-default-rotate-y) * -1 + 8deg));
+}
+
+/* === FOCUS (keyboard navigation) === */
+.nav-cube-item:focus-visible .nav-cube-face.front {
+    outline: 2px solid var(--nav-cube-active-color);
+    outline-offset: 2px;
+}
+
+/* === MOBILE PORTRAIT — proper 3D mini cubes === */
+@media (max-width: 768px) and (orientation: portrait) {
+    .nav-cube-scene {
+        width: var(--nav-cube-size-mobile);
+        height: var(--nav-cube-size-mobile);
+    }
+
+    /* Re-calc face positions: height-based (cube depth = height) */
+    .nav-cube {
+        transform: translateZ(calc(var(--nav-cube-size-mobile) / -2))
+                   rotateY(var(--nav-cube-default-rotate-y))
+                   rotateX(var(--nav-cube-default-rotate-x));
+    }
+
+    .nav-layer.right .nav-cube {
+        transform: translateZ(calc(var(--nav-cube-size-mobile) / -2))
+                   rotateY(calc(var(--nav-cube-default-rotate-y) * -1))
+                   rotateX(var(--nav-cube-default-rotate-x));
+    }
+
+    .nav-cube-face.front  { transform: rotateY(0deg)    translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+    .nav-cube-face.back   { transform: rotateY(180deg)  translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+    .nav-cube-face.right  { transform: rotateY(90deg)   translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+    .nav-cube-face.left   { transform: rotateY(-90deg)  translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+    .nav-cube-face.top    { transform: rotateX(90deg)   translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+    .nav-cube-face.bottom { transform: rotateX(-90deg)  translateZ(calc(var(--nav-cube-size-mobile) / 2)); }
+
+    .nav-cube-item:hover .nav-cube {
+        transform:
+            translateZ(calc(var(--nav-cube-size-mobile) / -2))
+            rotateY(calc(var(--nav-cube-default-rotate-y) + var(--nav-cube-hover-tilt) * -1))
+            rotateX(calc(var(--nav-cube-default-rotate-x) + var(--nav-cube-hover-tilt) * 0.6));
+    }
+
+    .nav-layer.right .nav-cube-item:hover .nav-cube {
+        transform:
+            translateZ(calc(var(--nav-cube-size-mobile) / -2))
+            rotateY(calc(var(--nav-cube-default-rotate-y) * -1 + var(--nav-cube-hover-tilt)))
+            rotateX(calc(var(--nav-cube-default-rotate-x) + var(--nav-cube-hover-tilt) * 0.6));
+    }
+
+    .nav-cube-item.active .nav-cube {
+        transform:
+            translateZ(calc(var(--nav-cube-size-mobile) / -2))
+            rotateY(calc(var(--nav-cube-default-rotate-y) - 8deg));
+    }
+
+    .nav-layer.right .nav-cube-item.active .nav-cube {
+        transform:
+            translateZ(calc(var(--nav-cube-size-mobile) / -2))
+            rotateY(calc(var(--nav-cube-default-rotate-y) * -1 + 8deg));
+    }
+}
+
+/* === MOBILE LANDSCAPE — compact vertical === */
+@media (max-width: 926px) and (orientation: landscape) {
+    .nav-cube-scene {
+        width: calc(var(--nav-cube-size-mobile) * 0.85);
+        height: calc(var(--nav-cube-size-mobile) * 0.85);
+    }
+}
+
+/* === REDUCED MOTION — respect user preference === */
+@media (prefers-reduced-motion: reduce) {
+    .nav-cube,
+    .nav-cube-item {
+        transition: none;
+    }
+
+    .nav-cube-item:hover .nav-cube,
+    .nav-cube-item.active .nav-cube {
+        transform: translateZ(calc(var(--nav-cube-size) / -2));
+    }
+}

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Customizer Section: Logo Settings
  *

@@ -1,4 +1,4 @@
-# TemplateRenderer Configuration for gCube (staging.nierto.com)
+# TemplateRenderer Configuration for gCube (your-site.example)
 # gNode-powered Tera template rendering for 3D cube faces
 
 enabled: true

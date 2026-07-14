@@ -1,4 +1,4 @@
-# ErrorManager Configuration for gCube (staging.nierto.com)
+# ErrorManager Configuration for gCube (your-site.example)
 # Dual logging: ValKey (fast queries) + File (dev troubleshooting)
 
 enabled: true
@@ -21,7 +21,7 @@ config:
     # File logging for dev team troubleshooting
     file:
       enabled: true
-      path: /home/august/gh/gCore/logs/gcube-error.log  # Dev-accessible location
+      path: /var/log/geodineum/themes/gtemplate-error.log
       rotation_size: 5242880  # 5MB
       rotation_count: 5  # Keep 5 rotated files
       format: "[{timestamp}] [{level}] [{category}] {message} {context}"
@@ -30,7 +30,7 @@ config:
     # ValKey logging for fast queries and dashboards
     valkey:
       enabled: true
-      prefix: "{staging_nierto_com}:error:"  # Multi-tenant isolation
+      prefix: "{your_site}:error:"  # Multi-tenant isolation
       ttl: 2592000  # 30 days
       max_errors_per_hash: 1000
       include_trace: true
@@ -52,7 +52,7 @@ config:
     admin_notification: true
   
   notifications:
-    email: "tech@nierto.com"  # gCube staging alerts
+    email: "alerts@example.com"  # gCube staging alerts
     email_threshold: CRITICAL  # Only critical errors email
     rate_limit_window: 3600  # 1 hour
     rate_limit_threshold: 50  # Max 50 emails per hour

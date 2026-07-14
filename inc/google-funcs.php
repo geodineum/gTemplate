@@ -1,8 +1,9 @@
 <?php
+declare(strict_types=1);
 /**
  * Google Fonts Integration Functions
  *
- * @package gCore
+ * @package gTemplate
  * @subpackage Font_Management
  * @version 1.0.0
  *
@@ -26,7 +27,7 @@
  *     - Supports both Google and local font sources
  *     - Handles fallback font configurations
  *
- * gCore_output_font_css_variables()
+ * gtemplate_output_font_css_variables()
  *     - Outputs CSS variables for font families
  *     - Enables consistent font usage across theme styles
  *     - Hooked to wp_head with priority 5
@@ -155,47 +156,33 @@ function gtemplate_use_local_fonts(): bool {
 }
 
 /**
- * Enqueue fonts stylesheet
+ * Enqueue Google Fonts (only when not using self-hosted fonts)
  *
- * By default, uses self-hosted fonts (saves 5-8 requests).
- * Can be switched to Google Fonts via GTEMPLATE_USE_GOOGLE_FONTS constant.
+ * Self-hosted fonts.css is already enqueued by enqueue.php as 'gtemplate-fonts'.
+ * This function only adds Google Fonts as a fallback when local fonts are disabled
+ * via the GTEMPLATE_USE_GOOGLE_FONTS constant.
  */
-function gCore_enqueue_google_fonts() {
-    $theme_uri = get_template_directory_uri();
-    $theme_dir = get_template_directory();
-    $version = wp_get_theme()->get('Version');
-
-    // Use self-hosted fonts by default (performance optimization)
-    if (gtemplate_use_local_fonts()) {
-        // Check if local fonts CSS exists
-        if (file_exists($theme_dir . '/assets/css/fonts.css')) {
+function gtemplate_enqueue_google_fonts() {
+    // Self-hosted fonts are enqueued by enqueue.php (gtemplate-fonts handle).
+    // Only enqueue Google Fonts if local fonts are explicitly disabled.
+    if (!gtemplate_use_local_fonts()) {
+        $google_fonts_url = get_google_font_url();
+        if (!empty($google_fonts_url)) {
             wp_enqueue_style(
-                'gtemplate-local-fonts',
-                $theme_uri . '/assets/css/fonts.css',
+                'gtemplate-google-fonts',
+                $google_fonts_url,
                 [],
-                $version
+                null
             );
-            return; // Skip Google Fonts
         }
     }
-
-    // Fallback to Google Fonts
-    $google_fonts_url = get_google_font_url();
-    if (!empty($google_fonts_url)) {
-        wp_enqueue_style(
-            'gtemplate-google-fonts',
-            $google_fonts_url,
-            [],
-            null
-        );
-    }
 }
-add_action('wp_enqueue_scripts', 'gCore_enqueue_google_fonts', 1);
+add_action('wp_enqueue_scripts', 'gtemplate_enqueue_google_fonts', 1);
 
 /**
  * Add preconnect hints for Google Fonts performance (only if using Google Fonts)
  */
-function gCore_google_fonts_preconnect() {
+function gtemplate_google_fonts_preconnect() {
     // Skip if using local fonts
     if (gtemplate_use_local_fonts()) {
         return;
@@ -207,10 +194,10 @@ function gCore_google_fonts_preconnect() {
         echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . "\n";
     }
 }
-add_action('wp_head', 'gCore_google_fonts_preconnect', 1);
+add_action('wp_head', 'gtemplate_google_fonts_preconnect', 1);
 
 // Output font CSS variables for use in other stylesheets
-function gCore_output_font_css_variables() {
+function gtemplate_output_font_css_variables() {
     ?>
     <style>
         :root {
@@ -222,4 +209,4 @@ function gCore_output_font_css_variables() {
     </style>
     <?php
 }
-add_action('wp_head', 'gCore_output_font_css_variables', 5);
+add_action('wp_head', 'gtemplate_output_font_css_variables', 5);

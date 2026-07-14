@@ -1,11 +1,12 @@
 <?php
+declare(strict_types=1);
 /**
  * gCore Sanitization Functions
  *
  * Provides core sanitization functionality for the gCore theme, ensuring
  * data security and validation across theme customizer options and user inputs.
  *
- * @package     gCore
+ * @package gTemplate
  * @subpackage  Security
  * @since       1.0.0
  *
@@ -20,18 +21,18 @@
  * =========================
  * KEY FUNCTIONS
  * =========================
- * gCore_sanitize_hex_color()
+ * gtemplate_sanitize_hex_color()
  * - Validates and sanitizes hexadecimal color values
  * - Input: String (potential hex color)
  * - Output: Valid hex color or null
  *
- * gCore_sanitize_css_value()
+ * gtemplate_sanitize_css_value()
  * - Validates CSS measurements including units
  * - Input: String (CSS value with unit)
  * - Output: Valid CSS value or null
  * - Supported units: px, em, rem, %, vw, vh, vmin, vmax
  *
- * gCore_sanitize_option()
+ * gtemplate_sanitize_option()
  * - Validates customizer option against allowed choices
  * - Input: Mixed value, WP_Customize_Setting object
  * - Output: Sanitized value or default setting
@@ -51,7 +52,7 @@
  * =========================
  * - Implements WordPress security best practices for input sanitization
  * - Follows functional programming paradigm for pure validation functions
- * - Uses strict type checking and regex patterns for robust validation
+ * - Uses strict type checking and regex patterns for reliable validation
  * - Provides graceful fallbacks for invalid inputs
  *
  * =========================
@@ -96,7 +97,9 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function gCore_sanitize_hex_color($color) {
+// Guards: child theme may define these first (WordPress loads child before parent)
+if (!function_exists('gtemplate_sanitize_hex_color')) {
+function gtemplate_sanitize_hex_color($color) {
     if ('' === $color) {
         return '';
     }
@@ -105,19 +108,47 @@ function gCore_sanitize_hex_color($color) {
     }
     return null;
 }
+}
 
-function gCore_sanitize_css_value($input) {
-    $valid_units = ['px', 'em', 'rem', '%', 'vw', 'vh', 'vmin', 'vmax'];
-    $pattern = '/^(\d*\.?\d+)(' . implode('|', $valid_units) . ')?$/';
-    if (preg_match($pattern, $input)) {
+if (!function_exists('gtemplate_sanitize_css_value')) {
+function gtemplate_sanitize_css_value($input) {
+    // 1-4 space-separated values (padding/margin/position shorthand) or 'auto'
+    $valid_units = ['px', 'em', 'rem', '%', 'vw', 'vh', 'vmin', 'vmax', 'ms', 's'];
+    $units_pattern = implode('|', $valid_units);
+    $single_value = "(?:\\d*\\.?\\d+(?:$units_pattern)?|auto)";
+    $pattern = "/^{$single_value}(?:\\s+{$single_value}){0,3}$/";
+    if (preg_match($pattern, trim((string) $input))) {
         return $input;
     }
     return null;
 }
+}
 
-function gCore_sanitize_option($input, $setting) {
+if (!function_exists('gtemplate_sanitize_css_color')) {
+function gtemplate_sanitize_css_color($input) {
+    // hex, rgb(a), hsl(a), transparent, or var(--name)
+    $input = trim((string) $input);
+    if ('' === $input || 'transparent' === $input) {
+        return $input;
+    }
+    if (preg_match('|^#([A-Fa-f0-9]{3,4}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$|', $input)) {
+        return $input;
+    }
+    if (preg_match('/^(rgb|rgba|hsl|hsla)\(\s*[\d.,%\s\/]+\)$/', $input)) {
+        return $input;
+    }
+    if (preg_match('/^var\(--[A-Za-z0-9_-]+\)$/', $input)) {
+        return $input;
+    }
+    return null;
+}
+}
+
+if (!function_exists('gtemplate_sanitize_option')) {
+function gtemplate_sanitize_option($input, $setting) {
     $choices = $setting->manager->get_control($setting->id)->choices;
     return (array_key_exists($input, $choices) ? $input : $setting->default);
+}
 }
 
 /**
@@ -126,6 +157,6 @@ function gCore_sanitize_option($input, $setting) {
  * @param mixed $input The value to sanitize
  * @return int Sanitized integer value
  */
-function gCore_sanitize_integer($input) {
+function gtemplate_sanitize_integer($input) {
     return intval($input);
 }

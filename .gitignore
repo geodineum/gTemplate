@@ -1,3 +1,9 @@
+# Hidden files/dirs — strict policy: keep them out
+.*
+!.gitignore
+!.gitattributes
+!.htaccess
+
 # Dependencies
 vendor/
 node_modules/

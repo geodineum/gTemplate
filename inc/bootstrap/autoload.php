@@ -1,6 +1,7 @@
 <?php
+declare(strict_types=1);
 /**
- * gTemplate-wp Autoload Orchestrator
+ * gTemplate Autoload Orchestrator
  *
  * Loads all theme files in the correct dependency order.
  * 9-phase bootstrap pattern shared by all Geodineum themes.
@@ -80,6 +81,7 @@ require_once $inc_dir . '/rendering/helpers.php';
 require_once $inc_dir . '/rendering/content-sources/index.php';
 require_once $inc_dir . '/rendering/face-renderer.php';
 require_once $inc_dir . '/rendering/config-export.php';
+require_once $inc_dir . '/rendering/nav-renderer.php';
 
 //-----------------------------------------------------------------------------
 // Phase 8: Assets
@@ -97,8 +99,17 @@ require_once $inc_dir . '/rest/index.php';
 // Integrations (gNode, managers, features, content)
 require_once $inc_dir . '/integrations/index.php';
 
-// gNode content sync (face mapping, template sync)
-require_once $inc_dir . '/gnode-content-sync.php';
+// gNode content sync — split into 4 single-concern files in Commit 1.10.c
+// so the security-sensitive full-page-cache surface is no
+// longer mixed with caching housekeeping. Page-sync handles WP→Tera
+// template conversion + per-page registration; cell-mapping handles
+// face-cell ↔ WP page resolution + sync; bundle-cache handles ValKey
+// pre-rendered bundles + post-bundle generation; full-page-cache holds
+// the anonymous-GET HTML cache (hardened in Commit 1.11).
+require_once $inc_dir . '/sync/page-sync.php';
+require_once $inc_dir . '/sync/cell-mapping.php';
+require_once $inc_dir . '/sync/bundle-cache.php';
+require_once $inc_dir . '/sync/full-page-cache.php';
 
 // Email-to-Post integration
 require_once $inc_dir . '/email-to-post.php';

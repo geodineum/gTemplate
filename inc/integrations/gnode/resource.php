@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * ResourceManager Integration for gTemplate Asset Management
  *
@@ -10,7 +11,7 @@
  * - Multi-tenant isolation (site_id/node_id)
  *
  * Performance benefits:
- * - Native gNode asset bundling (25x faster than PHP)
+ * - Native gNode asset bundling (batched, single round-trip)
  * - Server-side template rendering via Tera
  * - <1ms cache retrieval from ValKey
  *
@@ -34,7 +35,7 @@ function gtemplate_init_resource_manager($gCore, $gNodeClient = null) {
     try {
         $resource = $gCore->getService('ResourceManager');
         if (!$resource) {
-            error_log('gTemplate: ResourceManager not available from gCore');
+            gtemplate_track_error('gTemplate: ResourceManager not available from gCore');
             return null;
         }
 
@@ -52,11 +53,11 @@ function gtemplate_init_resource_manager($gCore, $gNodeClient = null) {
             'debug' => defined('WP_DEBUG') && WP_DEBUG
         ]);
 
-        error_log('gTemplate: ResourceManager initialized' . ($gNodeClient ? ' with gNode' : ' (legacy mode)'));
+        gtemplate_track_error('gTemplate: ResourceManager initialized' . ($gNodeClient ? ' with gNode' : ' (legacy mode)'));
         return $resource;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: ResourceManager init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: ResourceManager init error: ' . $e->getMessage());
         return null;
     }
 }
@@ -82,7 +83,7 @@ function gtemplate_asset_url(string $asset_path, string $group = 'core'): string
     // Get version from VersionManager if available
     $version = gtemplate_get_asset_version($group);
 
-    // Combine version and mtime for robust cache busting
+    // Combine version and mtime for reliable cache busting
     $cache_buster = $version . '.' . $mtime;
 
     return $theme_uri . '/' . ltrim($asset_path, '/') . '?v=' . $cache_buster;
@@ -138,7 +139,7 @@ function gtemplate_create_bundle(string $bundle_id, array $assets, string $type 
             return $resource->createAssetBundle($bundle_id, $assets, $type, $minify);
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Bundle creation failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Bundle creation failed: ' . $e->getMessage());
     }
 
     return null;
@@ -163,7 +164,7 @@ function gtemplate_resource_get_bundle_manifest(string $bundle_id): ?array {
             return $resource->getBundleManifest($bundle_id);
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Bundle retrieval failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Bundle retrieval failed: ' . $e->getMessage());
     }
 
     return null;
@@ -203,7 +204,7 @@ function gtemplate_invalidate_asset(string $asset_id, string $type = 'asset'): b
             }
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Asset invalidation failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Asset invalidation failed: ' . $e->getMessage());
     }
 
     return false;
@@ -253,11 +254,11 @@ function gtemplate_register_face_templates(): bool {
             }
         }
 
-        error_log('gTemplate: Registered ' . count($faces) . ' face templates with ResourceManager');
+        gtemplate_track_error('gTemplate: Registered ' . count($faces) . ' face templates with ResourceManager');
         return true;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Face template registration failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Face template registration failed: ' . $e->getMessage());
         return false;
     }
 }
@@ -272,19 +273,25 @@ function gtemplate_register_face_templates(): bool {
 function gtemplate_get_preload_hints(): array {
     $hints = [];
 
-    // Critical CSS for cube rendering
-    $hints[] = [
-        'href' => gtemplate_asset_url('assets/css/theme.css'),
-        'as' => 'style',
-        'type' => 'text/css'
-    ];
+    // Critical CSS (only if file exists — child themes may not use parent assets)
+    $css_path = get_parent_theme_file_path('assets/css/theme.css');
+    if (file_exists($css_path)) {
+        $hints[] = [
+            'href' => gtemplate_asset_url('assets/css/theme.css'),
+            'as' => 'style',
+            'type' => 'text/css'
+        ];
+    }
 
-    // Critical JS for cube controls
-    $hints[] = [
-        'href' => gtemplate_asset_url('assets/js/theme.js'),
-        'as' => 'script',
-        'type' => 'text/javascript'
-    ];
+    // Critical JS (only if file exists)
+    $js_path = get_parent_theme_file_path('assets/js/theme.js');
+    if (file_exists($js_path)) {
+        $hints[] = [
+            'href' => gtemplate_asset_url('assets/js/theme.js'),
+            'as' => 'script',
+            'type' => 'text/javascript'
+        ];
+    }
 
     return apply_filters('gtemplate_preload_hints', $hints);
 }
@@ -446,10 +453,10 @@ add_action('upgrader_process_complete', function($upgrader, $options) {
                 $version = $gCore->getService('VersionManager');
                 if ($version) {
                     $version->incrementAllVersions();
-                    error_log('gTemplate: Resource caches invalidated after theme update');
+                    gtemplate_track_error('gTemplate: Resource caches invalidated after theme update');
                 }
             } catch (\Throwable $e) {
-                error_log('gTemplate: Failed to invalidate caches: ' . $e->getMessage());
+                gtemplate_track_error('gTemplate: Failed to invalidate caches: ' . $e->getMessage());
             }
         }
     }
@@ -469,6 +476,13 @@ add_filter('script_loader_src', 'gtemplate_add_cache_buster', 10, 2);
  * @return string Modified URL
  */
 function gtemplate_add_cache_buster($src, $handle) {
+    // WordPress passes false/empty for styles + scripts registered without a
+    // src (inline, or src deregistered). strpos() on a non-string is a fatal
+    // TypeError on PHP 8+, so bail before touching it.
+    if (!is_string($src) || $src === '') {
+        return $src;
+    }
+
     // Only modify our theme's assets
     if (strpos($src, get_template_directory_uri()) === false) {
         return $src;

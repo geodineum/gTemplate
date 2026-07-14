@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * REST API Resource: Faces
  *
@@ -29,18 +30,28 @@ if (!defined('ABSPATH')) {
 function gtemplate_register_face_routes(string $namespace): void {
     $max_face = gtemplate_get_face_count() - 1;
 
-    // Face configurations endpoint - for gNode bundle builder
+    // Face configurations endpoint - for gNode bundle builder.
+    //
+    // Commit 1.11.b: pre-fix `permission_callback => '__return_true'`
+    // exposed the site-wide content plan (which page is on which face,
+    // template metadata, etc.) to anonymous internet GETs. The comment
+    // claimed "Public for gNode daemon" but nothing proved the caller
+    // WAS the daemon. Post-fix: shared-secret header gate via
+    // `gtemplate_face_configs_authorize` — daemon presents
+    // `X-Gnode-Shared-Secret: <secret>` matching the WP option
+    // `gtemplate_face_configs_secret`; admins (logged-in
+    // manage_options) also pass for debugging. Anonymous internet =
+    // 403.
     register_rest_route($namespace, '/face-configs', [
         'methods' => 'GET',
         'callback' => 'gtemplate_rest_get_face_configs',
-        'permission_callback' => '__return_true', // Public for gNode daemon
+        'permission_callback' => 'gtemplate_face_configs_authorize',
     ]);
 
-    // Single face configuration endpoint
     register_rest_route($namespace, '/face-config/(?P<face_id>\d+)', [
         'methods' => 'GET',
         'callback' => 'gtemplate_rest_get_single_face_config',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'gtemplate_face_configs_authorize',
         'args' => [
             'face_id' => [
                 'required' => true,
@@ -65,6 +76,43 @@ function gtemplate_register_face_routes(string $namespace): void {
             ]
         ]
     ]);
+}
+
+/**
+ * Commit 1.11.b: authorize face-configs reads.
+ *
+ * Pass-criteria (any one):
+ *   1. Logged-in user with manage_options (operator debugging).
+ *   2. `X-Gnode-Shared-Secret` header matches the WP option
+ *      `gtemplate_face_configs_secret`. The secret is auto-generated
+ *      on first use (mirrors the page-cache HMAC pattern from 1.11.a).
+ *      Operators provision the daemon's copy via
+ *      `wp option get gtemplate_face_configs_secret`.
+ *
+ * Else 403.
+ */
+function gtemplate_face_configs_authorize(\WP_REST_Request $request)
+{
+    if (\function_exists('current_user_can') && \current_user_can('manage_options')) {
+        return true;
+    }
+
+    $secret = (string) get_option('gtemplate_face_configs_secret', '');
+    if ($secret === '' || \strlen($secret) < 32) {
+        $secret = wp_generate_password(64, true, true);
+        update_option('gtemplate_face_configs_secret', $secret, false);
+    }
+
+    $provided = (string) $request->get_header('x_gnode_shared_secret');
+    if ($provided !== '' && \hash_equals($secret, $provided)) {
+        return true;
+    }
+
+    return new \WP_Error(
+        'gtemplate_face_configs_forbidden',
+        'face-configs requires either an authenticated admin session or the X-Gnode-Shared-Secret header.',
+        ['status' => 403]
+    );
 }
 
 /**
@@ -266,7 +314,7 @@ function gtemplate_rest_get_face($request) {
         }
 
     } catch (\Throwable $e) {
-        error_log("gTemplate: Face {$face_id} render failed: " . $e->getMessage());
+        gtemplate_track_error("gTemplate: Face {$face_id} render failed: " . $e->getMessage());
 
         // Return error message in HTML format for HTMX
         $error_html = sprintf(
@@ -285,73 +333,12 @@ function gtemplate_rest_get_face($request) {
 /**
  * Sync face configurations to ValKey for gNode daemon access
  *
- * Called on customizer save to update face configs in ValKey.
- * gNode daemon reads these to build bundles without HTTP requests.
- *
- * @return bool Success
+ * Removed in Tier-2 commit 2.4 (CB-D1.13 mirror; gCube counterpart
+ * landed in commit 2.0). The function previously wrote
+ * `{site_id}:config:face_configs` — an orphan ValKey key with zero
+ * readers across all 9 component repos. gNode daemon reads only
+ * `{site_id}:gnode:face_mapping` (asset_builder.rs:526). The
+ * keybased-client invalidation side effect now fires from the
+ * surviving canonical `gtemplate_sync_face_mapping_to_valkey`
+ * hook in inc/sync/bundle-cache.php.
  */
-function gtemplate_sync_face_configs_to_valkey(): bool {
-    try {
-        $site_id = gtemplate_get_site_id();
-        $configs = gtemplate_get_all_face_configs();
-        $positions = apply_filters('gtemplate_face_positions', []);
-        $css_classes = apply_filters('gtemplate_face_css_classes', []);
-
-        // Get ValKey connection
-        $gNode = gtemplate_gnode_keybased();
-        if (!$gNode) {
-            error_log('[gTemplate] Cannot sync face configs: gNode client not available');
-            return false;
-        }
-
-        // Enhance configs with rendered content
-        $enhanced_configs = [];
-        foreach ($configs as $face_id => $config) {
-            $enhanced_configs[$face_id] = array_merge($config, [
-                'content_html' => gtemplate_get_face_content($face_id),
-                'position' => $positions[$face_id] ?? 'unknown',
-                'css_class' => $css_classes[$face_id] ?? '',
-            ]);
-        }
-
-        // Store in ValKey via gNode client's storage
-        $storage = $gNode->getStorage();
-        if ($storage) {
-            $key = "{{$site_id}}:config:face_configs";
-            $data = json_encode([
-                'site_id' => $site_id,
-                'site_url' => home_url(),
-                'site_name' => get_bloginfo('name'),
-                'generated_at' => current_time('c'),
-                'faces' => $enhanced_configs,
-            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-            $storage->set($key, $data);
-            error_log("[gTemplate] Synced face configs to ValKey: {$key}");
-
-            // Invalidate bundle to trigger rebuild with new configs
-            gtemplate_invalidate_bundle();
-
-            return true;
-        }
-
-        return false;
-
-    } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to sync face configs: ' . $e->getMessage());
-        return false;
-    }
-}
-
-// Hook: Sync face configs when customizer is saved
-add_action('customize_save_after', 'gtemplate_sync_face_configs_to_valkey');
-
-// Hook: Sync face configs when theme mods are updated
-add_action('update_option_theme_mods_' . get_option('stylesheet'), function() {
-    // Debounce multiple saves
-    static $synced = false;
-    if (!$synced) {
-        $synced = true;
-        gtemplate_sync_face_configs_to_valkey();
-    }
-});

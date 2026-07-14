@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Email-to-Post Feature for gTemplate
  *
@@ -54,30 +55,83 @@ add_action('rest_api_init', function() {
  */
 function gtemplate_verify_email_webhook(WP_REST_Request $request): bool
 {
-    // Check webhook secret
+    // Commit 1.11.c: HMAC-SHA256 over `(timestamp + body)`
+    // with replay-cache. Pre-fix was a static-secret X-Webhook-Secret
+    // header check — a leak (log, proxy hop, gateway compromise)
+    // turned the webhook into a forge-anything primitive. Post-fix:
+    //
+    //   - X-Webhook-Timestamp: <unix-seconds>          required
+    //   - X-Webhook-Signature: sha256=<hex>            required
+    //   - signature = hash_hmac('sha256', "<ts>.<body>", $secret)
+    //   - reject if |now - ts| > 5 minutes
+    //   - short replay-cache (5 min sliding) keyed on the signature
+    //   - rate-limit retained (max 10 emails / minute, sliding window)
+    //
+    // Backward-compat shim: if X-Webhook-Timestamp + X-Webhook-Signature
+    // are absent BUT the legacy X-Webhook-Secret matches, log a
+    // deprecation warning and accept once. This lets gateway operators
+    // upgrade their signing logic in their own time. Remove the shim
+    // in a future Tier-2 commit once all operators have migrated.
+
     $webhook_secret = get_option('gtemplate_email_webhook_secret', '');
-    $provided_secret = $request->get_header('X-Webhook-Secret');
-
     if (empty($webhook_secret)) {
-        error_log('[gTemplate Email-to-Post] Webhook secret not configured');
+        gtemplate_track_error('[gTemplate Email-to-Post] Webhook secret not configured');
         return false;
     }
 
-    if (!hash_equals($webhook_secret, $provided_secret ?? '')) {
-        error_log('[gTemplate Email-to-Post] Invalid webhook secret provided');
-        return false;
+    $timestamp = (string) ($request->get_header('X-Webhook-Timestamp') ?? '');
+    $signature = (string) ($request->get_header('X-Webhook-Signature') ?? '');
+
+    if ($timestamp !== '' && $signature !== '') {
+        // HMAC path (preferred).
+        $ts_int = (int) $timestamp;
+        if ($ts_int <= 0 || abs(time() - $ts_int) > 300) {
+            gtemplate_track_error('[gTemplate Email-to-Post] Webhook timestamp out of range (|now - ts| > 5 min)');
+            return false;
+        }
+
+        // strip optional `sha256=` prefix
+        if (\strpos($signature, 'sha256=') === 0) {
+            $signature = \substr($signature, 7);
+        }
+
+        // The raw body is what was signed; WP_REST_Request gives us
+        // the JSON-decoded params, but get_body() returns the raw bytes.
+        $body = (string) $request->get_body();
+        $expected = \hash_hmac('sha256', $timestamp . '.' . $body, $webhook_secret);
+
+        if (!\hash_equals($expected, $signature)) {
+            gtemplate_track_error('[gTemplate Email-to-Post] Webhook HMAC mismatch');
+            return false;
+        }
+
+        // Replay-cache. Use the signature itself as the cache key.
+        $replay_key = 'gtemplate_email_webhook_replay_' . \substr($expected, 0, 32);
+        if (get_transient($replay_key) !== false) {
+            gtemplate_track_error('[gTemplate Email-to-Post] Webhook replay rejected');
+            return false;
+        }
+        set_transient($replay_key, 1, 300); // 5 minute window
+    } else {
+        // Legacy static-secret path (deprecated, shim).
+        $provided_secret = (string) ($request->get_header('X-Webhook-Secret') ?? '');
+        if ($provided_secret === '' || !\hash_equals($webhook_secret, $provided_secret)) {
+            gtemplate_track_error('[gTemplate Email-to-Post] Invalid webhook auth (no HMAC headers, fallback X-Webhook-Secret mismatch)');
+            return false;
+        }
+        gtemplate_track_error('[gTemplate Email-to-Post] DEPRECATED: webhook used legacy X-Webhook-Secret instead of HMAC. Migrate gateway to send X-Webhook-Timestamp + X-Webhook-Signature.');
     }
 
-    // Rate limiting: max 10 emails per minute
+    // Rate limiting: max 10 emails per minute (unchanged).
     $rate_key = 'gtemplate_email_webhook_rate_' . date('YmdHi');
     $rate_count = (int) get_transient($rate_key);
 
     if ($rate_count >= 10) {
-        error_log('[gTemplate Email-to-Post] Rate limit exceeded');
+        gtemplate_track_error('[gTemplate Email-to-Post] Rate limit exceeded');
         return false;
     }
 
-    set_transient($rate_key, $rate_count + 1, 120); // 2 minute expiry
+    set_transient($rate_key, $rate_count + 1, 120);
 
     return true;
 }
@@ -119,7 +173,7 @@ function gtemplate_handle_email_to_post(WP_REST_Request $request)
     $sender_email = sanitize_email($email_data['from']);
 
     if (!gtemplate_is_sender_authorized($sender_email, $allowed_senders)) {
-        error_log("[gTemplate Email-to-Post] Unauthorized sender: {$sender_email}");
+        gtemplate_track_error("[gTemplate Email-to-Post] Unauthorized sender: {$sender_email}");
         return new WP_Error(
             'unauthorized_sender',
             'Sender email is not authorized to create posts',
@@ -158,7 +212,7 @@ function gtemplate_handle_email_to_post(WP_REST_Request $request)
     $post_id = wp_insert_post($post_data, true);
 
     if (is_wp_error($post_id)) {
-        error_log('[gTemplate Email-to-Post] Failed to create post: ' . $post_id->get_error_message());
+        gtemplate_track_error('[gTemplate Email-to-Post] Failed to create post: ' . $post_id->get_error_message());
         return new WP_Error(
             'post_creation_failed',
             'Failed to create post: ' . $post_id->get_error_message(),
@@ -185,7 +239,7 @@ function gtemplate_handle_email_to_post(WP_REST_Request $request)
     // Notify admin
     gtemplate_notify_email_to_post($post_id, $sender_email, $post_title);
 
-    error_log("[gTemplate Email-to-Post] Created draft post {$post_id} from {$sender_email}");
+    gtemplate_track_error("[gTemplate Email-to-Post] Created draft post {$post_id} from {$sender_email}");
 
     return new WP_REST_Response([
         'success' => true,
@@ -262,6 +316,70 @@ function gtemplate_get_email_author(string $sender_email): int
  * @param array $attachment Attachment data (filename, url, content_type)
  * @return int|null Attachment ID or null on failure
  */
+/**
+ * Commit 1.11.c: SSRF guard for the email-to-post
+ * attachment fetcher. Returns false if the URL is not safe for
+ * download_url():
+ *   - scheme must be http or https (rejects file://, phar://, ftp://,
+ *     gopher://, data://)
+ *   - host must resolve to public IPs only (rejects RFC1918,
+ *     link-local, loopback, IPv6 ULA via FILTER_FLAG_NO_PRIV_RANGE |
+ *     FILTER_FLAG_NO_RES_RANGE)
+ *
+ * Mirrors gCube's gcube_email_attachment_url_is_safe (Commit 1.8.c)
+ * and gNode-Client's OpenAPIImporter SSRF guard (Commit 1.12.b).
+ * Kept as a per-package helper rather than a shared composer dep
+ * because the three projects don't share a Composer namespace.
+ */
+function gtemplate_email_attachment_url_is_safe(string $url): bool
+{
+    $parts = parse_url($url);
+    if ($parts === false || empty($parts['scheme']) || empty($parts['host'])) {
+        return false;
+    }
+    $scheme = strtolower($parts['scheme']);
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return false;
+    }
+
+    $host = $parts['host'];
+    $resolved = [];
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        $resolved = [$host];
+    } else {
+        $a = @dns_get_record($host, DNS_A);
+        $aaaa = @dns_get_record($host, DNS_AAAA);
+        foreach ((array) $a as $rec) {
+            if (!empty($rec['ip'])) {
+                $resolved[] = $rec['ip'];
+            }
+        }
+        foreach ((array) $aaaa as $rec) {
+            if (!empty($rec['ipv6'])) {
+                $resolved[] = $rec['ipv6'];
+            }
+        }
+        if (empty($resolved)) {
+            return false;
+        }
+    }
+
+    foreach ($resolved as $ip) {
+        $ok = filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6
+                | FILTER_FLAG_NO_PRIV_RANGE
+                | FILTER_FLAG_NO_RES_RANGE
+        );
+        if ($ok === false) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function gtemplate_sideload_email_attachment(int $post_id, array $attachment): ?int
 {
     if (empty($attachment['url']) || empty($attachment['filename'])) {
@@ -271,7 +389,17 @@ function gtemplate_sideload_email_attachment(int $post_id, array $attachment): ?
     // Only allow images
     $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!empty($attachment['content_type']) && !in_array($attachment['content_type'], $allowed_types)) {
-        error_log("[gTemplate Email-to-Post] Skipping non-image attachment: {$attachment['filename']}");
+        gtemplate_track_error("[gTemplate Email-to-Post] Skipping non-image attachment: " . preg_replace('/[\r\n\t]+/', ' ', (string) $attachment['filename']));
+        return null;
+    }
+
+    // Commit 1.11.c: SSRF defence on attachment URL.
+    // Pre-fix accepted any URL scheme + any private-IP destination;
+    // 30 was a timeout, not a size cap. Mirrors the gCube CB-D2.07
+    // pattern from Commit 1.8.c.
+    $url = (string) $attachment['url'];
+    if (!gtemplate_email_attachment_url_is_safe($url)) {
+        gtemplate_track_error("[gTemplate Email-to-Post] Rejected attachment URL (SSRF guard): " . preg_replace('/[\r\n\t]+/', ' ', $url));
         return null;
     }
 
@@ -279,10 +407,11 @@ function gtemplate_sideload_email_attachment(int $post_id, array $attachment): ?
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
-    // Download file to temp
-    $tmp_file = download_url($attachment['url'], 30);
+    // Download file to temp with explicit 20 MiB size cap (5th arg
+    // is the size cap in bytes per WP 5.2+).
+    $tmp_file = download_url($url, 30, false, false, 20 * 1024 * 1024);
     if (is_wp_error($tmp_file)) {
-        error_log("[gTemplate Email-to-Post] Failed to download attachment: " . $tmp_file->get_error_message());
+        gtemplate_track_error("[gTemplate Email-to-Post] Failed to download attachment: " . preg_replace('/[\r\n\t]+/', ' ', $tmp_file->get_error_message()));
         return null;
     }
 
@@ -298,7 +427,7 @@ function gtemplate_sideload_email_attachment(int $post_id, array $attachment): ?
     // Clean up temp file on failure
     if (is_wp_error($attachment_id)) {
         @unlink($tmp_file);
-        error_log("[gTemplate Email-to-Post] Failed to sideload attachment: " . $attachment_id->get_error_message());
+        gtemplate_track_error("[gTemplate Email-to-Post] Failed to sideload attachment: " . $attachment_id->get_error_message());
         return null;
     }
 
@@ -363,11 +492,19 @@ function gtemplate_email_to_post_status(): WP_REST_Response
 }
 
 /**
- * Admin settings page for email-to-post
+ * Admin settings page for email-to-post.
+ *
+ * Hidden by default: the WordPress receiving half is complete and hardened, but
+ * the inbound mail -> webhook gateway that would feed it does not exist yet, so
+ * the feature cannot ingest email end-to-end. Deferred to Chapter 2. Flip the
+ * 'gtemplate_email_to_post_enabled' filter to true once an inbound gateway ships.
  */
 add_action('admin_menu', function() {
+    if (!apply_filters('gtemplate_email_to_post_enabled', false)) {
+        return;
+    }
     add_submenu_page(
-        'tools.php',
+        'gcore-dashboard',
         'Email to Post',
         'Email to Post',
         'manage_options',

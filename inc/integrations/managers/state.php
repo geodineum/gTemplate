@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * State Integration for gTemplate Theme
  *
  * Provides graceful distributed state management:
- * - Premium: Full gNode-based state with persistence and pub/sub
- * - Free-tier: In-memory only state (no persistence between requests)
+ * - Extension: Full gNode-based state with persistence and pub/sub
+ * - Default: In-memory only state (no persistence between requests)
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_state_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] StateManager: gCore not available');
+            gtemplate_track_error('[gTemplate] StateManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get StateManager via gCore resolver (returns stub or premium automatically)
+        // Get StateManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('StateManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -44,19 +45,19 @@ function gtemplate_init_state_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_state_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('StateManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] StateManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('StateManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] StateManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] StateManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] StateManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the StateManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\StateManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\StateManagerInterface|null
  */
 function gtemplate_get_state_manager() {
     return $GLOBALS['gtemplate_state_manager'] ?? null;
@@ -149,7 +150,7 @@ function gtemplate_rollback_transaction(?string $transactionId = null): bool {
 }
 
 /**
- * Check if state management is available (premium)
+ * Check if state management is available (requires extension)
  *
  * @return bool
  */

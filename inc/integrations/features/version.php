@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * VersionManager Integration for gTemplate Cache Management
  *
@@ -33,7 +34,7 @@ function gtemplate_init_version_manager($gCore) {
     try {
         $version = $gCore->getService('VersionManager');
         if (!$version) {
-            error_log('gTemplate: VersionManager not available from gCore');
+            gtemplate_track_error('gTemplate: VersionManager not available from gCore');
             return null;
         }
 
@@ -50,11 +51,11 @@ function gtemplate_init_version_manager($gCore) {
         // Register cube-specific cache groups
         gtemplate_register_version_groups($version);
 
-        error_log('gTemplate: VersionManager initialized with cache groups');
+        gtemplate_track_error('gTemplate: VersionManager initialized with cache groups');
         return $version;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: VersionManager init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: VersionManager init error: ' . $e->getMessage());
         return null;
     }
 }
@@ -126,7 +127,7 @@ function gtemplate_increment_version(string $group = 'core'): int {
             return $version->incrementVersion($group);
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Version increment failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Version increment failed: ' . $e->getMessage());
     }
 
     return 1;
@@ -149,10 +150,10 @@ function gtemplate_increment_all_versions(): void {
         $version = $gCore->getService('VersionManager');
         if ($version && $version->isInitialized()) {
             $version->incrementAllVersions();
-            error_log('gTemplate: All cache versions incremented');
+            gtemplate_track_error('gTemplate: All cache versions incremented');
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: All versions increment failed: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: All versions increment failed: ' . $e->getMessage());
     }
 }
 
@@ -246,7 +247,7 @@ function gtemplate_get_all_versions(): array {
 add_action('customize_save_after', function() {
     gtemplate_increment_version('face');
     gtemplate_increment_version('manifest');
-    error_log('gTemplate: Face and manifest versions incremented (customizer save)');
+    gtemplate_track_error('gTemplate: Face and manifest versions incremented (customizer save)');
 });
 
 /**
@@ -267,7 +268,7 @@ add_action('save_post', function($post_id, $post, $update) {
             if (($source === 'page' || $source === 'post') && $content_id === $post_id) {
                 gtemplate_increment_version('cell');
                 gtemplate_increment_version('bundle');
-                error_log("gTemplate: Cell version incremented (post {$post_id} updated on cell {$i})");
+                gtemplate_track_error("gTemplate: Cell version incremented (post {$post_id} updated on cell {$i})");
                 break;
             }
         }

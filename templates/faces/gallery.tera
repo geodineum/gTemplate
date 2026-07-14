@@ -1,0 +1,90 @@
+{# templates/faces/gallery.tera - Image Gallery Face #}
+<div class="cube-face-content gallery" data-face-id="{{ face_id }}">
+  <header class="face-header">
+    <h1>Gallery</h1>
+
+    {% if categories %}
+      <nav class="gallery-filters">
+        <button data-filter="all" class="filter-button active">All</button>
+        {% for category in categories %}
+          <button data-filter="{{ category.slug }}" class="filter-button">
+            {{ category.name }}
+          </button>
+        {% endfor %}
+      </nav>
+    {% endif %}
+  </header>
+
+  <main class="face-body">
+    {% if images %}
+      <div class="gallery-grid">
+        {% for image in images %}
+          <div class="gallery-item" data-category="{{ image.category }}" data-image-id="{{ image.id }}">
+            <div class="image-wrapper">
+              <img
+                src="{{ image.thumbnail }}"
+                alt="{{ image.alt }}"
+                loading="lazy"
+                data-full="{{ image.full }}"
+                data-action="open-lightbox">
+
+              {% if image.caption %}
+                <div class="image-caption">
+                  {{ image.caption }}
+                </div>
+              {% endif %}
+            </div>
+
+            {% if image.title %}
+              <h3 class="image-title">{{ image.title }}</h3>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No images in gallery yet.</p>
+      </div>
+    {% endif %}
+
+    {# Lightbox overlay (hidden by default) #}
+    <div id="lightbox" class="lightbox" style="display: none;">
+      <button class="lightbox-close" data-action="close-lightbox">&times;</button>
+
+      <div class="lightbox-content">
+        <button class="lightbox-prev" data-action="prev-image">←</button>
+
+        <div class="lightbox-image-container">
+          <img src="" alt="" id="lightbox-image">
+          <div class="lightbox-caption" id="lightbox-caption"></div>
+        </div>
+
+        <button class="lightbox-next" data-action="next-image">→</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="face-footer">
+    {% if images %}
+      <p class="image-count">{{ images | length }} images</p>
+    {% endif %}
+
+    {% if pagination %}
+      <nav class="pagination">
+        {% if pagination.prev %}
+          <button data-action="load-gallery-page" data-page="{{ pagination.prev }}">
+            ← Previous
+          </button>
+        {% endif %}
+
+        <span>Page {{ pagination.current }} of {{ pagination.total }}</span>
+
+        {% if pagination.next %}
+          <button data-action="load-gallery-page" data-page="{{ pagination.next }}">
+            Next →
+          </button>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </footer>
+</div>

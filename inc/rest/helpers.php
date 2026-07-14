@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 // Shared REST helpers. Cross-resource utility functions used by
 // resource handlers. Core functions like gtemplate_get_site_id(),

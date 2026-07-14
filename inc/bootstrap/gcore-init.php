@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * gCore Framework Initialization
  *
@@ -48,7 +49,7 @@ function gtemplate_initialize_gcore() {
 
         // FREE-TIER MODE: Initialize without gNode/ValKey
         if (GTEMPLATE_FREE_TIER) {
-            error_log('gTemplate: Initializing in FREE-TIER mode (no gNode/ValKey)');
+            gtemplate_track_error('gTemplate: Initializing in FREE-TIER mode (no gNode/ValKey)');
 
             $gCore->initialize([
                 'site_id' => gtemplate_get_site_id(),
@@ -66,7 +67,7 @@ function gtemplate_initialize_gcore() {
             $GLOBALS['gtemplate_gnode_storage'] = null;
             $GLOBALS['gtemplate_free_tier_mode'] = true;
 
-            error_log('gTemplate: Free-tier initialization complete - using PHP fallback rendering');
+            gtemplate_track_error('gTemplate: Free-tier initialization complete - using PHP fallback rendering');
 
             ob_get_clean();
             error_reporting($old_error_reporting);
@@ -88,13 +89,13 @@ function gtemplate_initialize_gcore() {
                 $GLOBALS['gtemplate_gnode_keybased_client'] = $gNodeClient;
                 $GLOBALS['gtemplate_gnode_storage'] = $gNodeClient;
 
-                if (GTEMPLATE_DEBUG) error_log("gTemplate: gNode-Client obtained from gCore (site: {$site_id}, env: {$environment})");
+                if (GTEMPLATE_DEBUG) gtemplate_track_error("gTemplate: gNode-Client obtained from gCore (site: {$site_id}, env: {$environment})");
             } else {
                 throw new \RuntimeException('gCore did not provide gnode_client service');
             }
 
         } catch (\Throwable $e) {
-            error_log('gTemplate: gNode-Client not available from gCore: ' . $e->getMessage());
+            gtemplate_track_error('gTemplate: gNode-Client not available from gCore: ' . $e->getMessage());
             $GLOBALS['gtemplate_free_tier_mode'] = true;
             $GLOBALS['gtemplate_gnode_client'] = null;
             $GLOBALS['gtemplate_gnode_keybased_client'] = null;
@@ -114,7 +115,7 @@ function gtemplate_initialize_gcore() {
         gtemplate_init_manifest_manager($gCore);
         gtemplate_init_cookie_manager($gCore);
 
-        // Premium add-on managers (graceful stub fallback)
+        // Extension managers (graceful stub fallback)
         gtemplate_init_metrics_manager($GLOBALS['gtemplate_gnode_client']);
         gtemplate_init_state_manager($GLOBALS['gtemplate_gnode_client']);
         gtemplate_init_analytics_manager($GLOBALS['gtemplate_gnode_client']);
@@ -123,14 +124,14 @@ function gtemplate_initialize_gcore() {
         gtemplate_init_comms_manager($GLOBALS['gtemplate_gnode_client']);
 
     } catch (\Throwable $e) {
-        error_log('gTemplate Core Initialization Error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate Core Initialization Error: ' . $e->getMessage());
     }
 
     $stray_output = ob_get_clean();
     error_reporting($old_error_reporting);
 
     if (!empty($stray_output)) {
-        error_log('[gTemplate] Captured stray output during init: ' . substr($stray_output, 0, 500));
+        gtemplate_track_error('[gTemplate] Captured stray output during init: ' . substr($stray_output, 0, 500));
     }
 }
 
@@ -141,7 +142,7 @@ function gtemplate_initialize_topology_manager($gNodeClient) {
     global $gCore;
 
     if (!$gCore) {
-        error_log('[gTemplate] TopologyManager: gCore not available');
+        gtemplate_track_error('[gTemplate] TopologyManager: gCore not available');
         return;
     }
 
@@ -160,10 +161,10 @@ function gtemplate_initialize_topology_manager($gNodeClient) {
             'debug' => defined('WP_DEBUG') && WP_DEBUG
         ]);
 
-        if (GTEMPLATE_DEBUG) error_log("[gTemplate] TopologyManager initialized (site_id: {$site_id})");
+        if (GTEMPLATE_DEBUG) gtemplate_track_error("[gTemplate] TopologyManager initialized (site_id: {$site_id})");
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] TopologyManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] TopologyManager initialization failed: ' . $e->getMessage());
     }
 }
 

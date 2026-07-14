@@ -1,4 +1,4 @@
-# gTemplate-wp Registration Configuration (Template)
+# gTemplate Registration Configuration (Template)
 #
 # Copy this file to one of:
 #   1. {WordPress root}/wp-config-geodineum.yaml (highest priority)
@@ -11,7 +11,7 @@
 version: "1.0.0"
 
 # Site identification (auto-detected from domain if omitted)
-# site_id: staging_nierto_com
+# site_id: your_site
 
 service:
   type: wordpress-site

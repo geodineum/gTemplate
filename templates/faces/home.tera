@@ -1,0 +1,57 @@
+{# templates/faces/home.tera - Home/Hero Face #}
+<div class="cube-face-content home-face" data-face-id="{{ face_id }}">
+  <header class="face-header hero-section">
+    <h1 class="site-title">{{ blog_name }}</h1>
+    {% if blog_description %}
+      <p class="site-description">{{ blog_description }}</p>
+    {% endif %}
+  </header>
+
+  <main class="face-body hero-content">
+    {% if featured_posts %}
+      <section class="featured-posts">
+        <h2>Featured Content</h2>
+        <div class="posts-grid">
+          {% for post in featured_posts %}
+            <article class="post-card featured" data-post-id="{{ post.id }}">
+              <div class="post-thumbnail">
+                {% if post.thumbnail %}
+                  <img src="{{ post.thumbnail }}" alt="{{ post.title }}" loading="lazy">
+                {% else %}
+                  <div class="placeholder-image"></div>
+                {% endif %}
+              </div>
+
+              <div class="post-content">
+                <h3 class="post-title">{{ post.title }}</h3>
+
+                <div class="post-excerpt">
+                  {{ post.excerpt | truncate(length=100) }}
+                </div>
+
+                <button class="read-more" data-action="load-post" data-post-id="{{ post.id }}">
+                  Read More →
+                </button>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% else %}
+      <section class="welcome-message">
+        <p>Welcome to {{ blog_name }}</p>
+        <button data-action="navigate-face" data-face="blog">
+          View Blog Posts
+        </button>
+      </section>
+    {% endif %}
+  </main>
+
+  <footer class="face-footer">
+    <nav class="quick-nav">
+      <button data-action="navigate-face" data-face="blog">Blog</button>
+      <button data-action="navigate-face" data-face="contact">Contact</button>
+      <button data-action="navigate-face" data-face="gallery">Gallery</button>
+    </nav>
+  </footer>
+</div>

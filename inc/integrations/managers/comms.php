@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Comms Integration for gTemplate Theme
  *
  * Provides graceful notification/communications capabilities:
- * - Premium: Full gNode-COMMS daemon with multi-channel dispatch
- * - Free-tier: Stub implementation with in-memory storage
+ * - Extension: Full gNode-COMMS daemon with multi-channel dispatch
+ * - Default: Stub implementation with in-memory storage
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_comms_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] CommsManager: gCore not available');
+            gtemplate_track_error('[gTemplate] CommsManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get CommsManager via gCore resolver (returns stub or premium automatically)
+        // Get CommsManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('CommsManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -44,19 +45,19 @@ function gtemplate_init_comms_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_comms_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('CommsManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] CommsManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('CommsManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] CommsManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] CommsManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] CommsManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the CommsManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\CommsManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\CommsManagerInterface|null
  */
 function gtemplate_get_comms_manager() {
     return $GLOBALS['gtemplate_comms_manager'] ?? null;
@@ -180,11 +181,11 @@ function gtemplate_get_comms_daemon_status(?string $siteId = null): array {
 }
 
 /**
- * Check if premium comms features are available
+ * Check if extension comms features are available
  *
  * @return bool
  */
-function gtemplate_comms_premium(): bool {
+function gtemplate_comms_extension_mode(): bool {
     $manager = gtemplate_get_comms_manager();
 
     if (!$manager) {

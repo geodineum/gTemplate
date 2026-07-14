@@ -1,0 +1,101 @@
+{# templates/faces/single-post.tera - Single Post Detail Face #}
+<div class="cube-face-content single-post" data-face-id="{{ face_id }}" data-post-id="{{ post.id }}">
+  <header class="face-header post-header">
+    <nav class="breadcrumb">
+      <button data-action="navigate-face" data-face="home">Home</button>
+      <span>/</span>
+      <button data-action="navigate-face" data-face="blog">Blog</button>
+      <span>/</span>
+      <span>{{ post.title | truncate(length=30) }}</span>
+    </nav>
+
+    <h1 class="post-title">{{ post.title }}</h1>
+
+    <div class="post-meta">
+      {% if post.author %}
+        <span class="author">By {{ post.author }}</span>
+      {% endif %}
+
+      <time datetime="{{ post.date_iso }}">{{ post.date_human }}</time>
+
+      {% if post.category %}
+        <span class="category">{{ post.category }}</span>
+      {% endif %}
+
+      {% if post.tags %}
+        <div class="tags">
+          {% for tag in post.tags %}
+            <span class="tag">{{ tag }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if post.featured_image %}
+      <div class="featured-image">
+        <img src="{{ post.featured_image }}" alt="{{ post.title }}" loading="lazy">
+      </div>
+    {% endif %}
+  </header>
+
+  <main class="face-body post-content">
+    <div class="content-area">
+      {{ post.content | safe }}
+    </div>
+
+    {% if post.excerpt %}
+      <div class="post-excerpt-summary">
+        <strong>Summary:</strong> {{ post.excerpt }}
+      </div>
+    {% endif %}
+  </main>
+
+  <footer class="face-footer post-footer">
+    {% if post.author_bio %}
+      <div class="author-bio">
+        <h3>About the Author</h3>
+        {% if post.author_avatar %}
+          <img src="{{ post.author_avatar }}" alt="{{ post.author }}" class="author-avatar">
+        {% endif %}
+        <p>{{ post.author_bio }}</p>
+      </div>
+    {% endif %}
+
+    <div class="post-actions">
+      {% if prev_post %}
+        <button data-action="load-post" data-post-id="{{ prev_post.id }}" class="prev-post">
+          ← {{ prev_post.title | truncate(length=30) }}
+        </button>
+      {% endif %}
+
+      <button data-action="navigate-face" data-face="blog" class="back-to-blog">
+        Back to Blog
+      </button>
+
+      {% if next_post %}
+        <button data-action="load-post" data-post-id="{{ next_post.id }}" class="next-post">
+          {{ next_post.title | truncate(length=30) }} →
+        </button>
+      {% endif %}
+    </div>
+
+    {% if related_posts %}
+      <div class="related-posts">
+        <h3>Related Posts</h3>
+        <div class="related-grid">
+          {% for related in related_posts %}
+            <article class="related-card">
+              {% if related.thumbnail %}
+                <img src="{{ related.thumbnail }}" alt="{{ related.title }}" loading="lazy">
+              {% endif %}
+              <h4>{{ related.title }}</h4>
+              <button data-action="load-post" data-post-id="{{ related.id }}">
+                Read
+              </button>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </footer>
+</div>

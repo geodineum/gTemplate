@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * LLM/SEO Integration for gTemplate (AIO - AI Optimization)
  *
@@ -498,7 +499,7 @@ function gtemplate_generate_ai_meta_for_post(int $postId, array $options = []): 
     if ($result && ($result['success'] ?? false)) {
         // Store in post meta
         update_post_meta($postId, 'gtemplate_ai_meta', $result);
-        error_log("[gTemplate] AI meta generated for post {$postId}");
+        gtemplate_track_error("[gTemplate] AI meta generated for post {$postId}");
     }
 
     return $result;
@@ -555,7 +556,7 @@ add_action('save_post', function($postId, $post, $update) {
     // Schedule async generation (don't block save)
     if (function_exists('wp_schedule_single_event')) {
         wp_schedule_single_event(time() + 5, 'gtemplate_generate_ai_meta_async', [$postId]);
-        error_log("[gTemplate] Scheduled AI meta generation for post {$postId}");
+        gtemplate_track_error("[gTemplate] Scheduled AI meta generation for post {$postId}");
     } else {
         // Fallback: generate synchronously
         gtemplate_generate_ai_meta_for_post($postId);
@@ -744,13 +745,23 @@ add_action('after_switch_theme', function() {
 
 /**
  * Add column to show AI meta status in post list
+ *
+ * Only shown when AIO is active. Under the base-tier stub AI meta is never
+ * generated, so the column would be permanently empty ("—") and advertise a
+ * feature that isn't present.
  */
 add_filter('manage_posts_columns', function($columns) {
+    if (!gtemplate_aio_is_enabled()) {
+        return $columns;
+    }
     $columns['gtemplate_ai_meta'] = 'AI Meta';
     return $columns;
 });
 
 add_filter('manage_pages_columns', function($columns) {
+    if (!gtemplate_aio_is_enabled()) {
+        return $columns;
+    }
     $columns['gtemplate_ai_meta'] = 'AI Meta';
     return $columns;
 });
@@ -781,4 +792,3 @@ function gtemplate_render_ai_meta_column($column, $postId) {
 // INITIALIZATION
 // =============================================================================
 
-error_log('[gTemplate llm-seo-integration.php] Loaded');

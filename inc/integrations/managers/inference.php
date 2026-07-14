@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Inference Integration for gTemplate Theme
  *
  * Provides graceful AI inference capabilities:
- * - Premium: Full LLM inference via gNode-INFERENCE daemon
- * - Free-tier: Stub implementation with upgrade notices
+ * - Extension: Full LLM inference via gNode-INFERENCE daemon
+ * - Default: Stub implementation with upgrade notices
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_inference_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] InferenceManager: gCore not available');
+            gtemplate_track_error('[gTemplate] InferenceManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get InferenceManager via gCore resolver (returns stub or premium automatically)
+        // Get InferenceManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('InferenceManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -44,19 +45,19 @@ function gtemplate_init_inference_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_inference_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('InferenceManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] InferenceManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('InferenceManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] InferenceManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] InferenceManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] InferenceManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the InferenceManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\InferenceManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\InferenceManagerInterface|null
  */
 function gtemplate_get_inference_manager() {
     return $GLOBALS['gtemplate_inference_manager'] ?? null;
@@ -139,7 +140,7 @@ function gtemplate_generate_faq(string $content, int $count = 5): array {
 }
 
 /**
- * Check if inference is available (premium mode)
+ * Check if inference is available (requires extension)
  *
  * @return bool
  */

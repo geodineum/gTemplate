@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * REST API Resource: Render
  *
@@ -23,6 +24,13 @@ if (!defined('ABSPATH')) {
  */
 function gtemplate_register_render_routes(string $namespace): void {
     $max_face = gtemplate_get_face_count() - 1;
+
+    // Batch render ALL faces in one request (used by preload-all strategy)
+    register_rest_route($namespace, '/render-all', [
+        'methods' => 'GET',
+        'callback' => 'gtemplate_rest_render_all_faces',
+        'permission_callback' => '__return_true',
+    ]);
 
     register_rest_route($namespace, '/render', [
         'methods' => 'POST',
@@ -125,7 +133,7 @@ function gtemplate_rest_render_template($request) {
         ]);
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate REST] Template render error: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate REST] Template render error: ' . $e->getMessage());
 
         // Return error as HTML for PWA error handling
         $error_html = sprintf(
@@ -139,6 +147,109 @@ function gtemplate_rest_render_template($request) {
             'X-Error' => 'render-failed'
         ]);
     }
+}
+
+/**
+ * REST endpoint: Batch-render ALL faces in a single request.
+ *
+ * Returns JSON with all face HTML pre-rendered. The client calls this
+ * once on initial page load via requestIdleCallback — by the time the
+ * user clicks any face button, all content is already in the DOM.
+ *
+ * ValKey optimization: if all faces have cached bundles, this is a
+ * single GNODE_BATCH_MGET round-trip (~0.5ms) instead of 6 separate
+ * GNODE_CACHE_GET calls.
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function gtemplate_rest_render_all_faces($request) {
+    $face_count = gtemplate_get_face_count();
+    $positions = apply_filters('gtemplate_face_positions', []);
+    $gNode = gtemplate_gnode_keybased();
+
+    $faces = [];
+    $rendered_by = 'mixed';
+
+    // Try batch fetch from ValKey cache first (single round-trip)
+    $site_id = gtemplate_get_site_id();
+    $cache_keys = [];
+    for ($i = 0; $i < $face_count; $i++) {
+        $cache_keys[] = "{$site_id}:face:bundle:{$i}";
+    }
+
+    $cached_faces = [];
+    if ($gNode && method_exists($gNode, 'batchGet')) {
+        try {
+            $cached_faces = $gNode->batchGet($cache_keys);
+            $rendered_by = 'valkey-batch';
+        } catch (\Throwable $e) {
+            // Fall through to per-face rendering
+        }
+    }
+
+    for ($i = 0; $i < $face_count; $i++) {
+        // Use cached bundle if available
+        if (!empty($cached_faces[$i])) {
+            $faces[$i] = [
+                'face_id' => $i,
+                'html' => $cached_faces[$i],
+                'cached' => true,
+            ];
+            continue;
+        }
+
+        // Render individually (fallback)
+        try {
+            $template_id = "face_{$i}";
+            $template_data = [
+                'site_id' => $site_id,
+                'face_id' => $i,
+                'theme_url' => get_template_directory_uri(),
+                'home_url' => home_url(),
+                'blog_name' => get_bloginfo('name'),
+                'blog_description' => get_bloginfo('description'),
+                'content' => gtemplate_get_face_content($i),
+            ];
+
+            $html = null;
+            if ($gNode) {
+                $html = $gNode->renderTemplate($template_id, $template_data);
+            }
+
+            if (empty($html)) {
+                $html = gtemplate_render_face($i, array_merge([
+                    'position' => $positions[$i] ?? 'unknown'
+                ], $template_data));
+                $rendered_by = 'php-fallback';
+            }
+
+            $html = gtemplate_inject_template_js($html, $template_id);
+
+            $faces[$i] = [
+                'face_id' => $i,
+                'html' => $html,
+                'cached' => false,
+            ];
+        } catch (\Throwable $e) {
+            $faces[$i] = [
+                'face_id' => $i,
+                'html' => '<div class="face-error"><p>Content unavailable</p></div>',
+                'error' => $e->getMessage(),
+                'cached' => false,
+            ];
+        }
+    }
+
+    return new WP_REST_Response([
+        'faces' => $faces,
+        'count' => count($faces),
+        'rendered_by' => $rendered_by,
+    ], 200, [
+        'Content-Type' => 'application/json',
+        'X-Rendered-By' => $rendered_by,
+        'Cache-Control' => 'public, max-age=300',
+    ]);
 }
 
 /**

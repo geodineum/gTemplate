@@ -1,4 +1,4 @@
-# SecurityManager Configuration for gCube (staging.nierto.com)
+# SecurityManager Configuration for gCube (your-site.example)
 # Based on gCore defaults with staging-specific adjustments
 
 enabled: true
@@ -60,12 +60,12 @@ config:
   updates:
     auto_update: false  # Manual control for staging
     security_patches_only: false
-    notification_email: "tech@nierto.com"  # gCube staging notifications
+    notification_email: "alerts@example.com"  # gCube staging notifications
   
   alerts:
     high_priority:
       channels: ["email", "dashboard", "log"]
-      recipients: ["tech@nierto.com"]
+      recipients: ["alerts@example.com"]
     medium_priority:
       channels: ["dashboard", "log"]
       recipients: []
@@ -78,7 +78,7 @@ config:
     log_level: "detailed"
     retention_days: 90
   
-  premium_features:
+  extension_features:
     quantum_resistant:
       enabled: false
       license_key: null

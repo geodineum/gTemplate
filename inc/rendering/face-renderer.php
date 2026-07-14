@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Face Renderer
  *
@@ -32,7 +33,7 @@ function gtemplate_render_face($face_id, $data = []) {
         $bundle_html = gtemplate_get_face_from_bundle($face_id);
         if ($bundle_html) {
             if (GTEMPLATE_DEBUG) {
-                error_log("gTemplate: Face {$face_id} rendered via BUNDLE");
+                gtemplate_track_error("gTemplate: Face {$face_id} rendered via BUNDLE");
             }
             return $bundle_html;
         }
@@ -63,18 +64,18 @@ function gtemplate_render_face($face_id, $data = []) {
             $html = $gNode->renderTemplate($template_id, $template_data);
             if ($html && !empty($html)) {
                 if (GTEMPLATE_DEBUG) {
-                    error_log("gTemplate: Face {$face_id} rendered via KEY-BASED");
+                    gtemplate_track_error("gTemplate: Face {$face_id} rendered via KEY-BASED");
                 }
                 return $html;
             }
         }
     } catch (\Throwable $e) {
-        error_log("gTemplate: gNode render failed for face {$face_id}: " . $e->getMessage());
+        gtemplate_track_error("gTemplate: gNode render failed for face {$face_id}: " . $e->getMessage());
     }
 
     // TIER 3: PHP fallback
     if (GTEMPLATE_DEBUG) {
-        error_log("gTemplate: Face {$face_id} rendered via PHP FALLBACK");
+        gtemplate_track_error("gTemplate: Face {$face_id} rendered via PHP FALLBACK");
     }
     return gtemplate_render_face_fallback($face_id, $data['position'] ?? 'unknown');
 }

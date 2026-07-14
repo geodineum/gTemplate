@@ -1,4 +1,4 @@
-# APIManager Configuration for gCube (staging.nierto.com)
+# APIManager Configuration for gCube (your-site.example)
 # REST API with rate limiting and caching
 
 enabled: true

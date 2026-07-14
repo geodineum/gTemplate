@@ -1,8 +1,9 @@
 <?php
+declare(strict_types=1);
 /**
  * Translation Integration for gTemplate
  *
- * Integrates the premium TranslateManager for multilingual support.
+ * Integrates the TranslateManager extension for multilingual support.
  * Features:
  * - Browser language detection
  * - Manual translations via WordPress admin
@@ -30,7 +31,7 @@ function gtemplate_init_translation(): void
 
     if (!\file_exists($translate_manager_path)) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            \error_log('[gTemplate Translation] TranslateManager not found at: ' . $translate_manager_path);
+            \gtemplate_track_error('[gTemplate Translation] TranslateManager not found at: ' . $translate_manager_path);
         }
         return;
     }
@@ -39,7 +40,7 @@ function gtemplate_init_translation(): void
     // If not, TranslateManager can't be loaded - this is expected in standalone mode
     if (!\interface_exists('\gCore\Modules\Core\Interfaces\Shared\ModuleInterface')) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            \error_log('[gTemplate Translation] ModuleInterface not available - TranslateManager requires gCore framework');
+            \gtemplate_track_error('[gTemplate Translation] ModuleInterface not available - TranslateManager requires gCore framework');
         }
         return;
     }
@@ -61,11 +62,11 @@ function gtemplate_init_translation(): void
         // Get gCore instance
         global $gCore;
         if (!$gCore) {
-            \error_log('[gTemplate Translation] gCore not available');
+            \gtemplate_track_error('[gTemplate Translation] gCore not available');
             return;
         }
 
-        // Get TranslateManager via gCore resolver (returns stub or premium automatically)
+        // Get TranslateManager via gCore resolver (returns stub or extension automatically)
         $translate = $gCore->getService('TranslateManager');
 
         // Configure from site settings
@@ -77,12 +78,12 @@ function gtemplate_init_translation(): void
         ]);
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('TranslateManager') ? 'premium' : 'stub';
-            \error_log("[gTemplate] TranslateManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('TranslateManager') ? 'full' : 'stub';
+            \gtemplate_track_error("[gTemplate] TranslateManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        \error_log('[gTemplate Translation] Failed to initialize: ' . $e->getMessage());
+        \gtemplate_track_error('[gTemplate Translation] Failed to initialize: ' . $e->getMessage());
     }
 }
 \add_action('after_setup_theme', 'gTemplate\\gtemplate_init_translation', 15);
@@ -112,8 +113,24 @@ function gtemplate_get_translate_manager(): ?object
     try {
         return $gCore->getService('TranslateManager');
     } catch (\Throwable $e) {
+        // Service-registry-not-ready (early init / late shutdown). Caller
+        // checks for null and degrades gracefully; logging would be noise.
         return null;
     }
+}
+
+/**
+ * Whether a REAL translation backend is available (not the inert base-tier
+ * stub). Ch.1 ships the stub, so this is false and the translation UI stays
+ * hidden; the Chapter-2 Geodine-backed gcore-translate extension makes it true
+ * and lights up the switcher, options and hreflang.
+ */
+function gtemplate_translation_available(): bool
+{
+    $mgr = gtemplate_get_translate_manager();
+    return $mgr !== null
+        && \method_exists($mgr, 'isAvailable')
+        && $mgr->isAvailable();
 }
 
 /**
@@ -161,8 +178,8 @@ function gtemplate_language_switcher_shortcode(array $atts = []): string
     ], $atts, 'gtemplate_language_switcher');
 
     $translate = gtemplate_get_translate_manager();
-    if (!$translate || !\method_exists($translate, 'renderLanguageSwitcher')) {
-        return '<!-- TranslateManager not available -->';
+    if (!gtemplate_translation_available() || !\method_exists($translate, 'renderLanguageSwitcher')) {
+        return '';
     }
 
     return $translate->renderLanguageSwitcher([
@@ -187,7 +204,7 @@ function gtemplate_maybe_add_header_language_switcher(): void
     }
 
     $translate = gtemplate_get_translate_manager();
-    if (!$translate || !\method_exists($translate, 'renderLanguageSwitcher')) {
+    if (!gtemplate_translation_available() || !\method_exists($translate, 'renderLanguageSwitcher')) {
         return;
     }
 
@@ -207,7 +224,7 @@ function gtemplate_maybe_add_header_language_switcher(): void
 function gtemplate_add_hreflang_tags(): void
 {
     $translate = gtemplate_get_translate_manager();
-    if (!$translate || !\method_exists($translate, 'getSupportedLanguages')) {
+    if (!gtemplate_translation_available() || !\method_exists($translate, 'getSupportedLanguages')) {
         return;
     }
 
@@ -233,6 +250,14 @@ function gtemplate_add_hreflang_tags(): void
  */
 function gtemplate_translation_customizer(object $wp_customize): void
 {
+    // Only expose translation options when a real backend is present. Ch.1
+    // ships the inert stub; the Chapter-2 Geodine-backed gcore-translate
+    // extension makes translation available and lights this section up.
+    // Without the gate, users would see configurable options that do nothing.
+    if (!gtemplate_translation_available()) {
+        return;
+    }
+
     // Translation Section
     $wp_customize->add_section('gtemplate_translation', [
         'title' => \__('Translation Settings', 'gtemplate'),
@@ -296,20 +321,42 @@ function gtemplate_translation_customizer(object $wp_customize): void
  */
 function gtemplate_register_translation_rest_routes(): void
 {
+    // Commit 1.11.b: POST mutates session-language state.
+    // Pre-fix: `__return_true` + sole validator `is_string && strlen === 2`
+    // — any 2-char attacker-controlled string passed. Post-fix:
+    // (a) CSRF nonce via `gtemplate_rest_verify_nonce`,
+    // (b) whitelist against TranslateManager::getSupportedLanguages()
+    //     keys at validate_callback time.
     \register_rest_route(gtemplate_get_rest_namespace(), '/language', [
         'methods' => 'POST',
         'callback' => 'gTemplate\\gtemplate_set_language_endpoint',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'gtemplate_rest_verify_nonce',
         'args' => [
             'lang' => [
                 'required' => true,
                 'validate_callback' => function($param) {
-                    return \is_string($param) && \strlen($param) === 2;
+                    if (!\is_string($param) || \strlen($param) !== 2) {
+                        return false;
+                    }
+                    $translate = \gTemplate\gtemplate_get_translate_manager();
+                    if (!$translate || !\method_exists($translate, 'getSupportedLanguages')) {
+                        // Fail-closed: if TranslateManager isn't available
+                        // we can't validate, so reject. Better than silently
+                        // accepting any 2-char string.
+                        return false;
+                    }
+                    $supported = $translate->getSupportedLanguages();
+                    if (!\is_array($supported)) {
+                        return false;
+                    }
+                    return \array_key_exists($param, $supported)
+                        || \in_array($param, $supported, true);
                 },
             ],
         ],
     ]);
 
+    // GET stays public — read-only.
     \register_rest_route(gtemplate_get_rest_namespace(), '/language', [
         'methods' => 'GET',
         'callback' => 'gTemplate\\gtemplate_get_language_endpoint',

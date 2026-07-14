@@ -1,0 +1,132 @@
+{# templates/faces/dashboard.tera - User Dashboard Face #}
+<div class="cube-face-content dashboard" data-face-id="{{ face_id }}">
+  <header class="face-header">
+    <h1>Dashboard</h1>
+
+    {% if current_user %}
+      <div class="user-greeting">
+        <span>Welcome back, {{ current_user.display_name }}!</span>
+        {% if current_user.avatar %}
+          <img src="{{ current_user.avatar }}" alt="{{ current_user.display_name }}" class="user-avatar">
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="login-prompt">
+        <p>Please log in to access your dashboard</p>
+        <button data-action="show-login">Log In</button>
+      </div>
+    {% endif %}
+  </header>
+
+  <main class="face-body">
+    {% if current_user %}
+      <div class="dashboard-widgets">
+        {# Quick Stats Widget #}
+        {% if stats %}
+          <div class="widget stats-widget">
+            <h2>Quick Stats</h2>
+            <div class="stats-grid">
+              {% if stats.posts %}
+                <div class="stat-item">
+                  <span class="stat-value">{{ stats.posts }}</span>
+                  <span class="stat-label">Posts</span>
+                </div>
+              {% endif %}
+
+              {% if stats.comments %}
+                <div class="stat-item">
+                  <span class="stat-value">{{ stats.comments }}</span>
+                  <span class="stat-label">Comments</span>
+                </div>
+              {% endif %}
+
+              {% if stats.views %}
+                <div class="stat-item">
+                  <span class="stat-value">{{ stats.views }}</span>
+                  <span class="stat-label">Views</span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        {# Recent Activity Widget #}
+        {% if recent_activity %}
+          <div class="widget activity-widget">
+            <h2>Recent Activity</h2>
+            <ul class="activity-list">
+              {% for activity in recent_activity %}
+                <li class="activity-item">
+                  <time datetime="{{ activity.date_iso }}">{{ activity.date_human }}</time>
+                  <span class="activity-text">{{ activity.text }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {# Draft Posts Widget #}
+        {% if draft_posts %}
+          <div class="widget drafts-widget">
+            <h2>Your Drafts</h2>
+            <ul class="draft-list">
+              {% for draft in draft_posts %}
+                <li class="draft-item">
+                  <h3>{{ draft.title }}</h3>
+                  <p>Last edited: {{ draft.modified }}</p>
+                  <button data-action="edit-post" data-post-id="{{ draft.id }}">
+                    Continue Editing
+                  </button>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {# Quick Actions Widget #}
+        <div class="widget actions-widget">
+          <h2>Quick Actions</h2>
+          <div class="actions-grid">
+            <button data-action="new-post" class="action-button">
+              <span class="icon">+</span>
+              New Post
+            </button>
+
+            <button data-action="view-profile" class="action-button">
+              <span class="icon">👤</span>
+              View Profile
+            </button>
+
+            <button data-action="settings" class="action-button">
+              <span class="icon">⚙</span>
+              Settings
+            </button>
+
+            <button data-action="logout" class="action-button">
+              <span class="icon">🚪</span>
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="login-required">
+        <p>This dashboard is only accessible to logged-in users.</p>
+        <button data-action="show-login" class="primary-button">
+          Log In
+        </button>
+        <button data-action="navigate-face" data-face="home" class="secondary-button">
+          Return Home
+        </button>
+      </div>
+    {% endif %}
+  </main>
+
+  <footer class="face-footer">
+    {% if current_user %}
+      <p class="user-info">
+        Logged in as {{ current_user.email }} | Member since {{ current_user.registered }}
+      </p>
+    {% endif %}
+  </footer>
+</div>

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Content Source Router
  *
@@ -24,7 +25,7 @@ require_once $content_sources_dir . '/custom.php';
 require_once $content_sources_dir . '/demo.php';
 
 // Child theme content sources are loaded via filters, not includes here.
-// e.g., gCube adds glass.php, gTesseract adds bundle.php + template.php
+// e.g., gCube adds glass.php; other child themes add their own source files
 
 /**
  * Get rendered content for a face/cell
@@ -36,6 +37,12 @@ require_once $content_sources_dir . '/demo.php';
  * @return string Rendered HTML content
  */
 function gtemplate_get_face_content($face_id) {
+    // Balanced tags are load-bearing: one unclosed div in any face's content
+    // swallows every sibling face rendered after it (inactive faces are hidden).
+    return force_balance_tags(gtemplate_resolve_face_content($face_id));
+}
+
+function gtemplate_resolve_face_content($face_id) {
     $face_count = gtemplate_get_face_count();
     $face_prefix = gtemplate_get_face_prefix();
     $face_id = max(0, min($face_count - 1, (int) $face_id));

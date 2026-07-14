@@ -1,6 +1,7 @@
 <?php
+declare(strict_types=1);
 /**
- * gTemplate-wp Theme Constants
+ * gTemplate Theme Constants
  *
  * Defines all theme constants used throughout the codebase.
  * This file MUST be loaded first, before any other theme files.
@@ -21,7 +22,7 @@ if (!defined('ABSPATH')) {
  * Theme version - used for cache busting and compatibility checks
  */
 if (!defined('GTEMPLATE_VERSION')) {
-    define('GTEMPLATE_VERSION', '1.0.0');
+    define('GTEMPLATE_VERSION', '1.0.3');
 }
 
 /**
@@ -47,14 +48,14 @@ if (!defined('GTEMPLATE_FREE_TIER')) {
 }
 
 /**
- * Parent theme directory path (always points to gTemplate-wp)
+ * Parent theme directory path (always points to gTemplate)
  */
 if (!defined('GTEMPLATE_DIR')) {
     define('GTEMPLATE_DIR', get_template_directory());
 }
 
 /**
- * Parent theme directory URI (always points to gTemplate-wp)
+ * Parent theme directory URI (always points to gTemplate)
  */
 if (!defined('GTEMPLATE_URI')) {
     define('GTEMPLATE_URI', get_template_directory_uri());

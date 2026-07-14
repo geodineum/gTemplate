@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * SEOManager Integration for gTemplate
  *
@@ -30,7 +31,7 @@ function gtemplate_init_seo_manager() {
     try {
         $seo = $gCore->getService('SEOManager');
         if (!$seo) {
-            error_log('gTemplate: SEOManager not available from gCore');
+            gtemplate_track_error('gTemplate: SEOManager not available from gCore');
             return null;
         }
 
@@ -55,11 +56,11 @@ function gtemplate_init_seo_manager() {
             'debug' => defined('WP_DEBUG') && WP_DEBUG
         ]);
 
-        error_log('gTemplate: SEOManager initialized successfully');
+        gtemplate_track_error('gTemplate: SEOManager initialized successfully');
         return $seo;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: SEO init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: SEO init error: ' . $e->getMessage());
         return null;
     }
 }
@@ -80,6 +81,8 @@ function gtemplate_get_seo_manager() {
         $seo = $gCore->getService('SEOManager');
         return ($seo && $seo->isInitialized()) ? $seo : null;
     } catch (\Throwable $e) {
+        // Service-registry-not-ready (early init / late shutdown). Caller
+        // checks for null and degrades gracefully; logging would be noise.
         return null;
     }
 }
@@ -88,8 +91,14 @@ function gtemplate_get_seo_manager() {
  * Output SEO meta tags in wp_head
  *
  * Generates OpenGraph, Twitter Cards, and Schema.org for current page/face.
+ * Named function so child themes can remove_action() to avoid duplicates.
  */
-add_action('wp_head', function() {
+function gtemplate_output_seo_meta_tags() {
+    // Child themes set this flag to suppress parent's duplicate SEO output
+    if (apply_filters('gtemplate_child_seo_active', false)) {
+        return;
+    }
+
     $seo = gtemplate_get_seo_manager();
     if (!$seo) {
         return;
@@ -215,10 +224,11 @@ add_action('wp_head', function() {
         echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
 
     } catch (\Throwable $e) {
-        error_log('gTemplate SEO: Meta tag generation error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate SEO: Meta tag generation error: ' . $e->getMessage());
     }
 
-}, 5);  // Priority 5 = early in wp_head
+}
+add_action('wp_head', 'gtemplate_output_seo_meta_tags', 5);
 
 /**
  * Register rewrite rule for cube sitemap
@@ -311,6 +321,10 @@ add_action('template_redirect', function() {
  * Add Organization schema to homepage
  */
 add_action('wp_head', function() {
+    if (apply_filters('gtemplate_child_seo_active', false)) {
+        return;
+    }
+
     // Only on homepage
     if (!is_front_page() && !is_home()) {
         return;
@@ -333,7 +347,7 @@ add_action('wp_head', function() {
         echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
 
     } catch (\Throwable $e) {
-        error_log('gTemplate SEO: Organization schema error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate SEO: Organization schema error: ' . $e->getMessage());
     }
 }, 6);  // Priority 6 = after main schema
 
@@ -381,7 +395,7 @@ add_action('save_post', function($post_id) {
         if ($config['content_id'] == $post_id) {
             // Invalidate the face's SEO cache by setting new meta
             // This will update the cache with fresh data on next request
-            error_log("gTemplate SEO: Post {$post_id} updated, face {$face_id} SEO will refresh on next request");
+            gtemplate_track_error("gTemplate SEO: Post {$post_id} updated, face {$face_id} SEO will refresh on next request");
             break;
         }
     }

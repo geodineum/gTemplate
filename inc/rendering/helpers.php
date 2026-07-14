@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Rendering Helper Functions
  *
@@ -49,25 +50,20 @@ function gtemplate_is_free_tier(): bool {
 }
 
 /**
- * Get rendering mode based on tier
- *
- * @return string 'free_tier' or 'premium'
- */
-function gtemplate_get_mode(): string {
-    return gtemplate_is_free_tier() ? 'free_tier' : 'premium';
-}
-
-/**
  * Detect initial routing from WordPress query
  *
  * Determines which face/cell to show and whether a specific post is targeted.
+ * Resolution order:
+ *   1. Single post → posts cell
+ *   2. WP page with explicit cell mapping → mapped cell
+ *   3. URL slug matches a cell label slug → that cell (works for /contact, /news,
+ *      etc. even when no WP page exists or no explicit mapping is configured)
+ *   4. Category/archive/tag → posts cell
  *
  * @return array ['cell' => int, 'post_id' => int|null, 'post_slug' => string|null]
  */
 function gtemplate_detect_initial_routing(): array {
     $result = ['cell' => 0, 'post_id' => null, 'post_slug' => null];
-    $face_count = gtemplate_get_face_count();
-    $face_prefix = gtemplate_get_face_prefix();
 
     if (is_single()) {
         global $post;
@@ -85,6 +81,12 @@ function gtemplate_detect_initial_routing(): array {
             $cell = gtemplate_find_face_for_page($post->ID);
             if ($cell !== null) {
                 $result['cell'] = $cell;
+                return $result;
+            }
+            // Page exists but isn't mapped — try slug match against cell labels
+            $cell = gtemplate_find_face_by_slug($post->post_name);
+            if ($cell !== null) {
+                $result['cell'] = $cell;
             }
         }
         return $result;
@@ -95,7 +97,52 @@ function gtemplate_detect_initial_routing(): array {
         return $result;
     }
 
+    // Fallback: match URL path slug against cell label slugs.
+    // Handles /contact, /about etc. even when no WP page exists for that path.
+    $request_slug = gtemplate_get_request_slug();
+    if ($request_slug !== '') {
+        $cell = gtemplate_find_face_by_slug($request_slug);
+        if ($cell !== null) {
+            $result['cell'] = $cell;
+        }
+    }
+
     return $result;
+}
+
+/**
+ * Get the first path segment of the current request, sanitized as a slug.
+ *
+ * @return string Slug or empty string for the home page
+ */
+function gtemplate_get_request_slug(): string {
+    $path = $_SERVER['REQUEST_URI'] ?? '';
+    $path = parse_url($path, PHP_URL_PATH) ?: '';
+    $path = trim($path, '/');
+    if ($path === '') return '';
+    $first = explode('/', $path)[0];
+    return sanitize_title($first);
+}
+
+/**
+ * Find a cell whose label slug matches the given slug.
+ *
+ * @param string $slug URL-style slug (e.g. 'contact')
+ * @return int|null Cell index or null if no match
+ */
+function gtemplate_find_face_by_slug(string $slug): ?int {
+    if ($slug === '') return null;
+    $face_prefix = gtemplate_get_face_prefix();
+    $face_count = gtemplate_get_face_count();
+
+    for ($i = 0; $i < $face_count; $i++) {
+        $label = (string) get_theme_mod("{$face_prefix}_{$i}_label", '');
+        if ($label === '') continue;
+        if (sanitize_title($label) === $slug) {
+            return $i;
+        }
+    }
+    return null;
 }
 
 /**

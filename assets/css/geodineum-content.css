@@ -1,0 +1,221 @@
+/**
+ * Geodineum Content System
+ *
+ * The reusable page-content vocabulary — the golden-ratio layout, cards, steps,
+ * tables and typographic roles first proven in the gHyper / findings pages.
+ * Everything is scoped under `.geo` so pasted page markup adopts the system by
+ * opting in (<div class="geo">…</div>) without restyling nav, admin, or other
+ * plugins. Tokens live globally in golden-typography.css; this file only shapes.
+ *
+ * @package gTemplate
+ * @version 1.0.0
+ */
+
+.geo {
+    /* The design system is inherently dark (gold on near-black); .geo carries
+       its own ground so cards (--bg-1) read as a coherent surface instead of
+       dark boxes floating on a light theme. */
+    background: var(--bg-0);
+    color: var(--text);
+    /* Prefer the site's brand face (gIris sets --iris-font to Josefin Sans);
+       fall back to the system stack on any gTemplate site that sets no brand
+       font, so this parent stays neutral. */
+    font-family: var(--geo-font, var(--iris-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif));
+    font-size: var(--t-5);
+    line-height: 1.618;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* ─── Layout ─── */
+.geo .stage { max-width: 1200px; margin: 0 auto; padding: 0 var(--s-5); position: relative; }
+.geo section { padding: var(--s-7) 0; border-bottom: 1px solid var(--line); }
+.geo section.no-border { border-bottom: 0; }
+.geo .phi-grid { display: grid; grid-template-columns: var(--phi-inv, 0.618fr) 1fr; gap: var(--s-6); align-items: start; }
+@media (max-width: 800px) { .geo .phi-grid { grid-template-columns: 1fr; gap: var(--s-5); } }
+
+/* ─── Typographic roles ─── */
+.geo h1, .geo h2, .geo h3, .geo .display { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
+.geo h1 { font-size: var(--t-9); line-height: 1; letter-spacing: -0.03em; }
+.geo h2 { font-size: var(--t-7); line-height: 1.1; letter-spacing: -0.02em; color: var(--text); margin-bottom: var(--s-5); }
+.geo h3 { font-size: var(--t-6); line-height: 1.2; color: var(--gold-bright); margin-bottom: var(--s-3); }
+/* Headings stay gold and un-glowed. The global h1/h2/h3 rules (Customizer) default
+   to cyan text with a heavy blur; that leaks into .geo headings (and any bare
+   heading or unstyled .light span), clashing with the gold system. */
+.geo h1, .geo h2, .geo h3, .geo .display { text-shadow: none; }
+.geo h1 { color: var(--gold-bright); }
+.geo h1 .light, .geo h2 .light, .geo h3 .light { color: var(--text); }
+.geo h1 .accent, .geo h2 .accent, .geo h3 .accent { color: var(--gold-bright); }
+.geo .label { font-size: var(--t-1); text-transform: uppercase; letter-spacing: 0.18em; color: var(--gold); }
+.geo .lede { font-size: var(--t-6); line-height: 1.45; color: var(--text); max-width: 38em; }
+.geo .body-large { font-size: var(--t-5); line-height: 1.5; max-width: 36em; color: var(--text); }
+.geo p { color: var(--text); }
+.geo .muted { color: var(--text-dim); }
+.geo .faint { color: var(--text-faint); }
+.geo a { color: var(--gold); text-decoration: none; border-bottom: 1px solid var(--gold-soft); }
+.geo a:hover { color: var(--gold-bright); }
+.geo .num, .geo table, .geo .data { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ─── Cards ─── */
+.geo .card { background: var(--bg-1); border: 1px solid var(--line); padding: var(--s-5); position: relative; }
+.geo .card .corner { position: absolute; top: 0; right: 0; width: 21px; height: 21px; border-top: 1px solid var(--gold); border-right: 1px solid var(--gold); opacity: 0.5; }
+.geo .card h3 { margin-bottom: var(--s-2); }
+.geo .card .figure { font-family: Georgia, serif; font-size: var(--t-7); color: var(--gold-bright); line-height: 1; margin: var(--s-3) 0; }
+.geo .card .figure .small { font-size: var(--t-5); color: var(--text-dim); }
+.geo .card p { color: var(--text); font-size: var(--t-3); line-height: 1.55; }
+.geo .card .footnote { margin-top: var(--s-3); color: var(--text-dim); font-size: var(--t-2); }
+.geo .card-grid { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+/* ─── Tables ─── */
+.geo table { width: 100%; border-collapse: collapse; font-size: var(--t-3); margin: var(--s-3) 0; }
+.geo th, .geo td { padding: var(--s-2) var(--s-3); text-align: left; border-bottom: 1px solid var(--line); }
+.geo th { color: var(--gold-soft); font-weight: normal; text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--t-1); }
+.geo td.right { text-align: right; font-variant-numeric: tabular-nums; }
+.geo td.gold { color: var(--gold-bright); }
+
+/* ─── Code ─── */
+.geo code, .geo .mono { font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace; font-size: 0.86em; background: var(--bg-2); padding: 1px 6px; border-radius: 2px; color: var(--gold-bright); }
+.geo pre.code { background: var(--bg-2); padding: var(--s-4); margin: var(--s-3) 0; font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace; font-size: var(--t-3); color: var(--gold-bright); overflow-x: auto; border-left: 2px solid var(--gold-soft); }
+
+/* ─── Pills & steps ─── */
+.geo .pill { display: inline-block; font-size: var(--t-1); letter-spacing: 0.16em; text-transform: uppercase; padding: 3px 10px; border: 1px solid var(--line); color: var(--text-dim); border-radius: 999px; }
+.geo .step { display: grid; grid-template-columns: var(--s-7) 1fr; gap: var(--s-3); padding: var(--s-3) 0; border-bottom: 1px dashed var(--line); }
+.geo .step .step-n { font-family: Georgia, serif; color: var(--gold); font-size: var(--t-5); }
+.geo .step:last-child { border-bottom: 0; }
+.geo .step h4 { color: var(--text); font-size: var(--t-4); margin-bottom: 4px; }
+.geo .step p { color: var(--text-dim); font-size: var(--t-3); }
+
+/* ─── Pull quote ─── */
+.geo blockquote.pull { border-left: 2px solid var(--gold); padding: var(--s-3) var(--s-5); font-family: Georgia, serif; font-size: var(--t-6); line-height: 1.4; color: var(--text); margin: var(--s-5) 0; max-width: 36em; }
+
+/* ─── Buttons (canonical in-house button, shared by every .geo surface) ─── */
+.geo .gbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: var(--t-2); letter-spacing: 0.14em;
+  text-transform: uppercase; cursor: pointer; padding: var(--s-2) var(--s-4);
+  background: var(--bg-1); color: var(--gold-bright); border: 1px solid var(--line);
+  text-decoration: none; position: relative; overflow: hidden;
+  transition: color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .1s ease;
+}
+.geo .gbtn:active { transform: scale(0.98); }
+.geo .gb-sweep::before {
+  content: ''; position: absolute; top: 0; left: -160%; width: 60%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(232,196,104,0.35), transparent);
+  transform: skewX(-18deg); transition: left .65s ease; pointer-events: none;
+}
+.geo .gb-sweep:hover { border-color: var(--gold); color: var(--text); box-shadow: 0 0 34px rgba(201,169,97,0.22); }
+.geo .gb-sweep:hover::before { left: 160%; }
+
+/* ─── Scroll reveal ─── */
+.geo .reveal { opacity: 0; transform: translateY(20px); transition: opacity 700ms ease, transform 700ms ease; }
+.geo .reveal.in { opacity: 1; transform: translateY(0); }
+
+/* ─── Audience visibility (paired with a body.audience-* toggle) ─── */
+.geo .tech-only, .geo .nontech-only { display: none; }
+body.audience-tech .geo .tech-only { display: block; }
+body.audience-nontech .geo .nontech-only { display: block; }
+body.audience-tech .geo .tech-only-inline { display: inline; }
+body.audience-nontech .geo .nontech-only-inline { display: inline; }
+
+/* ─── Cascading tooltips (engine: geo-behaviors.js → window.GeoTip) ───
+   Not .geo-scoped: tooltips mount on <body> and work site-wide. Colors follow
+   the design-system tokens so they flip with the theme; the --geo-tip-* knobs
+   are Customizer-overridable (empty = inherit the token). */
+.geo-tips { position: fixed; inset: 0; pointer-events: none; z-index: 100010; }
+.geo-tip {
+    position: fixed; pointer-events: auto;
+    max-width: var(--geo-tip-max-width, 300px);
+    background: var(--geo-tip-bg, var(--bg-1));
+    color: var(--geo-tip-text, var(--text));
+    border: 1px solid var(--geo-tip-border, var(--line));
+    border-radius: 6px; padding: 10px 12px;
+    font-size: 0.86rem; line-height: 1.5;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+    animation: geo-tip-in 0.12s ease;
+}
+@keyframes geo-tip-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.geo-tip-title { color: var(--geo-tip-accent, var(--gold-bright)); font-size: 0.95rem; letter-spacing: 0.02em; margin-bottom: 5px; }
+.geo-tip-val { margin-bottom: 5px; font-variant-numeric: tabular-nums; }
+.geo-tip-val b { color: var(--geo-tip-accent, var(--gold-bright)); }
+.geo-tip-def, .geo-tip-body { color: var(--text-dim); }
+.geo-tip-zero, .geo-tip-pending { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--gold-soft); font-size: 0.8rem; }
+.geo-term { color: var(--geo-tip-accent, var(--gold-bright)); cursor: help; border-bottom: 1px dotted var(--gold-soft); white-space: nowrap; }
+.geo-term:hover { border-bottom-style: solid; }
+
+/* ─── Light/dark toggle (floating; injected by geo-behaviors.js) ─── */
+.geo-theme-toggle {
+    position: fixed; right: 18px; bottom: 18px; z-index: 99990;
+    width: 40px; height: 40px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg-1); color: var(--gold-bright);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; line-height: 1;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.geo-theme-toggle:hover { transform: translateY(-2px); }
+.geo-theme-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.geo-theme-toggle .geo-tt-sun, .geo-theme-toggle .geo-tt-moon { display: none; }
+:root[data-theme="dark"] .geo-theme-toggle .geo-tt-sun { display: block; }
+:root[data-theme="light"] .geo-theme-toggle .geo-tt-moon { display: block; }
+@media print { .geo-theme-toggle { display: none; } }
+
+/* ─── Custom checkbox (global; token-based so it flips with the theme) ───
+   Tag any <input type="checkbox"> with class="geo-check". Replaces the raw
+   native box the operator called out. Fixed-dark tick keeps contrast on the
+   gold fill in both themes. */
+input.geo-check {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px; min-width: 18px; margin: 0;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--bg-2); cursor: pointer; position: relative;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+input.geo-check:hover { border-color: var(--gold-soft); }
+input.geo-check:checked { background: var(--gold); border-color: var(--gold); }
+input.geo-check:checked::after {
+    content: ''; position: absolute; left: 5px; top: 2px;
+    width: 5px; height: 9px; border: solid #141109; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+input.geo-check:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ─── Canonical form system (global; token-based, theme-aware) ───
+   One system for every capture form across the site: waitlist, polls,
+   contact. Pair a <form class="geo-form"> with .row (two-up), label.field
+   (label + input), .geo-consent (checkbox row), .geo-submit, .geo-form-note,
+   and .geo-form-ok (success line). Honeypots go in .geo-hp. Sizes ride the
+   golden --t-* scale so the whole site reads uniform. */
+.geo-form { display: grid; gap: var(--s-3); }
+.geo-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+@media (max-width: 560px) { .geo-form .row { grid-template-columns: 1fr; } }
+.geo-form label.field { display: block; }
+.geo-form label.field > span,
+.geo-form label[for] {
+    display: block; font-size: var(--t-2); text-transform: uppercase;
+    letter-spacing: 0.16em; color: var(--gold); margin-bottom: 5px;
+}
+.geo-form input:not([type="checkbox"]):not([type="radio"]),
+.geo-form select,
+.geo-form textarea {
+    width: 100%; background: var(--bg-1); border: 1px solid var(--line); color: var(--text);
+    padding: var(--s-2) var(--s-3); font-family: inherit; font-size: var(--t-4); border-radius: 2px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+.geo-form textarea { min-height: 6.5rem; resize: vertical; }
+.geo-form input:focus, .geo-form select:focus, .geo-form textarea:focus {
+    outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.12);
+}
+.geo-consent { display: flex; align-items: flex-start; gap: var(--s-2); font-size: var(--t-3); color: var(--text-dim); cursor: pointer; }
+.geo-consent span { line-height: 1.5; }
+.geo-submit {
+    margin-top: var(--s-1); font-family: inherit; font-size: var(--t-3); letter-spacing: 0.16em;
+    text-transform: uppercase; cursor: pointer; padding: var(--s-3) var(--s-4);
+    background: var(--gold); color: #141109; border: 1px solid var(--gold); border-radius: 2px;
+    transition: background .18s ease, transform .1s ease; justify-self: start;
+}
+.geo-submit:hover { background: var(--gold-bright); }
+.geo-submit:active { transform: scale(0.99); }
+.geo-submit:disabled { opacity: 0.5; cursor: default; }
+.geo-form-note { color: var(--text-dim); font-size: var(--t-3); margin-top: var(--s-2); }
+.geo-form-ok { color: var(--good); font-size: var(--t-3); padding: var(--s-4) 0; }
+.geo-hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }

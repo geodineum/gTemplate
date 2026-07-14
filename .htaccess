@@ -1,0 +1,23 @@
+# gTemplate parent theme — WordPress symlinks /var/www/<site>/wp-content/themes/<child-theme>
+# into this directory. Apache follows the symlink and reads this .htaccess
+# when serving theme assets. Posture: allow static assets only, deny everything else.
+#
+# Static asset whitelist (CSS, JS, fonts, images, PWA manifests, sourcemaps)
+<FilesMatch "\.(css|js|map|woff2?|ttf|eot|otf|svg|png|jpe?g|gif|webp|ico|webmanifest|html|xml)$">
+    Require all granted
+</FilesMatch>
+
+# PHP files are require-included by WordPress, NEVER URL-requested directly
+<FilesMatch "\.(php|phtml|phps)$">
+    Require all denied
+</FilesMatch>
+
+# Dotfiles (.git, .gitignore, .env, .htaccess itself)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Sensitive file extensions (config, logs, scripts, build artifacts)
+<FilesMatch "\.(env|log|md|sh|bash|yaml|yml|toml|lock|bak|swp|orig|rs|rb|py)$">
+    Require all denied
+</FilesMatch>

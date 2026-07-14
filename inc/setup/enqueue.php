@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 function gtemplate_enqueue_parent_assets() {
@@ -7,6 +8,9 @@ function gtemplate_enqueue_parent_assets() {
 
     // Golden Typography System (shared across all child themes)
     wp_enqueue_style('gtemplate-golden-typography', $theme_uri . '/assets/css/golden-typography.css', [], $version);
+
+    // Geodineum content system — the .geo page-content vocabulary
+    wp_enqueue_style('gtemplate-geodineum-content', $theme_uri . '/assets/css/geodineum-content.css', ['gtemplate-golden-typography'], $version);
 
     // Self-hosted fonts (Ubuntu, Rubik)
     wp_enqueue_style('gtemplate-fonts', $theme_uri . '/assets/css/fonts.css', [], $version);
@@ -45,7 +49,27 @@ function gtemplate_enqueue_parent_assets() {
         wp_localize_script($primary_script, $localize_name, $settings);
     }
 
+    // 3D Nav Cubes (opt-in by child themes)
+    if (apply_filters('gtemplate_nav_renderer', 'flat') === 'cube-3d') {
+        wp_enqueue_style('gtemplate-nav-cubes', $theme_uri . '/assets/css/nav-cubes.css', [], $version);
+        wp_enqueue_script('gtemplate-nav-cubes', $theme_uri . '/assets/js/nav-cubes.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+    }
+
     // PWA loader (shared)
     wp_enqueue_script('gtemplate-pwa-loader', $theme_uri . '/assets/js/pwa-loader.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+
+    // Geodineum content behaviors — audience switch, scroll reveal, presentation
+    // SVGs. No-ops unless a .geo page provides the markup; safe site-wide.
+    wp_enqueue_script('gtemplate-geo-behaviors', $theme_uri . '/assets/js/geo-behaviors.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+
+    // Cookieless visitor analytics beacon. Not enqueued for operators previewing
+    // their own site, so admin traffic never inflates the counts.
+    if (!(is_user_logged_in() && current_user_can('manage_options'))) {
+        wp_enqueue_script('gtemplate-analytics-beacon', $theme_uri . '/assets/js/analytics-beacon.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+        wp_localize_script('gtemplate-analytics-beacon', 'gtemplateAnalytics', [
+            'url' => rest_url(gtemplate_get_rest_namespace() . '/analytics/hit'),
+            'consentKey' => 'gtemplate_cookie_consent_' . gtemplate_get_site_id(),
+        ]);
+    }
 }
 add_action('wp_enqueue_scripts', 'gtemplate_enqueue_parent_assets');

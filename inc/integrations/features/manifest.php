@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * ManifestManager Integration for gTemplate PWA
  *
@@ -33,7 +34,7 @@ function gtemplate_init_manifest_manager($gCore) {
     try {
         $manifest = $gCore->getService('ManifestManager');
         if (!$manifest) {
-            error_log('gTemplate: ManifestManager not available from gCore');
+            gtemplate_track_error('gTemplate: ManifestManager not available from gCore');
             return null;
         }
 
@@ -73,13 +74,48 @@ function gtemplate_init_manifest_manager($gCore) {
             'rest_namespace' => gtemplate_get_rest_namespace()
         ]);
 
-        error_log('gTemplate: ManifestManager initialized for PWA support');
+        gtemplate_track_error('gTemplate: ManifestManager initialized for PWA support');
         return $manifest;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: ManifestManager init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: ManifestManager init error: ' . $e->getMessage());
         return null;
     }
+}
+
+/**
+ * Whether a REAL manifest backend is available (not the inert base-tier stub).
+ *
+ * ManifestManager exposes no isAvailable() (unlike TranslateManager), so the
+ * stub self-identifies through getStatus()['stub_mode']: true = inert Ch.1 stub,
+ * false = the Chapter-2 gcore-manifest extension. When only the stub is present
+ * we must fall back to the theme's own native manifest generation rather than
+ * emit the stub's minimal data (empty icons + stub_mode/upgrade_message keys).
+ */
+function gtemplate_manifest_available(): bool {
+    global $gCore;
+
+    if (!$gCore) {
+        return false;
+    }
+
+    try {
+        $manifest = $gCore->getService('ManifestManager');
+    } catch (\Throwable $e) {
+        return false;
+    }
+
+    if (!$manifest || !method_exists($manifest, 'getStatus')) {
+        return false;
+    }
+
+    try {
+        $status = $manifest->getStatus();
+    } catch (\Throwable $e) {
+        return false;
+    }
+
+    return is_array($status) && empty($status['stub_mode']);
 }
 
 /**
@@ -185,6 +221,16 @@ function gtemplate_truncate_name(?string $name, int $max_length = 12): string {
  * - Mobile web app capable flags
  */
 add_action('wp_head', function() {
+    // PWA is a Chapter-2 capability — emit nothing until the manifest extension is present
+    if (!gtemplate_manifest_available()) {
+        return;
+    }
+
+    // Child themes set this flag to suppress parent's duplicate PWA meta output
+    if (apply_filters('gtemplate_child_pwa_active', false)) {
+        return;
+    }
+
     // Only output if PWA is enabled
     if (!apply_filters('gtemplate_pwa_enabled', true)) {
         return;
@@ -229,6 +275,11 @@ add_action('wp_head', function() {
  * - Push notifications
  */
 add_action('wp_footer', function() {
+    // PWA is a Chapter-2 capability — no service-worker registration in base tier
+    if (!gtemplate_manifest_available()) {
+        return;
+    }
+
     // Only if PWA enabled and service worker file exists
     if (!apply_filters('gtemplate_pwa_enabled', true)) {
         return;
@@ -261,6 +312,11 @@ add_action('wp_footer', function() {
  * Add PWA settings to WordPress Customizer
  */
 add_action('customize_register', function($wp_customize) {
+    // PWA is a Chapter-2 capability — hide the settings section until the extension is present
+    if (!gtemplate_manifest_available()) {
+        return;
+    }
+
     // Add PWA Section
     $wp_customize->add_section('gtemplate_pwa_section', [
         'title' => __('PWA Settings', 'gtemplate'),
@@ -291,6 +347,30 @@ add_action('customize_register', function($wp_customize) {
         'section' => 'gtemplate_pwa_section',
         'type' => 'text',
         'input_attrs' => ['maxlength' => 12],
+    ]);
+
+    // Description
+    $wp_customize->add_setting('gtemplate_pwa_description', [
+        'default' => '',
+        'sanitize_callback' => 'sanitize_text_field',
+    ]);
+    $wp_customize->add_control('gtemplate_pwa_description', [
+        'label' => __('App Description', 'gtemplate'),
+        'description' => __('Description shown in app stores and install prompts. Defaults to site tagline.', 'gtemplate'),
+        'section' => 'gtemplate_pwa_section',
+        'type' => 'text',
+    ]);
+
+    // Start URL
+    $wp_customize->add_setting('gtemplate_pwa_start_url', [
+        'default' => '',
+        'sanitize_callback' => 'esc_url_raw',
+    ]);
+    $wp_customize->add_control('gtemplate_pwa_start_url', [
+        'label' => __('Start URL', 'gtemplate'),
+        'description' => __('URL opened when the app launches. Defaults to homepage with face=1.', 'gtemplate'),
+        'section' => 'gtemplate_pwa_section',
+        'type' => 'url',
     ]);
 
     // Theme Color
@@ -361,10 +441,10 @@ add_action('customize_save_after', function() {
         $manifest = $gCore->getService('ManifestManager');
         if ($manifest && method_exists($manifest, 'invalidateCache')) {
             $manifest->invalidateCache();
-            error_log('gTemplate: ManifestManager cache invalidated after customizer save');
+            gtemplate_track_error('gTemplate: ManifestManager cache invalidated after customizer save');
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate: Failed to invalidate manifest cache: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Failed to invalidate manifest cache: ' . $e->getMessage());
     }
 });
 
@@ -392,15 +472,18 @@ function gtemplate_rest_get_manifest($request) {
     global $gCore;
 
     try {
-        // Debug: Check if we can use ManifestManager
-        if ($gCore) {
+        // Only defer to ManifestManager when the REAL extension is present.
+        // The base-tier stub returns minimal data (empty icons + stub_mode/
+        // upgrade_message keys) that would leak into this public endpoint, so
+        // under the stub we fall through to native generation below.
+        if ($gCore && gtemplate_manifest_available()) {
             try {
                 $manifest = $gCore->getService('ManifestManager');
                 if ($manifest && $manifest->isInitialized()) {
                     return $manifest->getManifestJson();
                 }
             } catch (\Throwable $e) {
-                error_log('gTemplate: ManifestManager service error: ' . $e->getMessage());
+                gtemplate_track_error('gTemplate: ManifestManager service error: ' . $e->getMessage());
                 // Fall through to manual generation
             }
         }
@@ -446,7 +529,7 @@ function gtemplate_rest_get_manifest($request) {
         ]);
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Manifest REST error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        gtemplate_track_error('gTemplate: Manifest REST error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         return new WP_REST_Response([
             'error' => 'Failed to generate manifest',
             'message' => WP_DEBUG ? $e->getMessage() : 'Internal error'

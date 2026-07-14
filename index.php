@@ -1,6 +1,6 @@
 <?php
 /**
- * Main template for gTemplate-wp parent theme
+ * Main template for gTemplate parent theme
  *
  * When used standalone (no child theme), renders a simple demo layout.
  * Child themes override this file to provide geometry-specific HTML
@@ -80,7 +80,7 @@ do_action('gtemplate_before_layout', $faces, $first_enabled);
             ?>
                 <button class="gtemplate-nav-btn<?php echo $is_active ? ' active' : ''; ?>"
                         data-face="<?php echo esc_attr($index); ?>"
-                        aria-selected="<?php echo $is_active ? 'true' : 'false'; ?>">
+                        aria-pressed="<?php echo $is_active ? 'true' : 'false'; ?>">
                     <?php echo esc_html($face['label']); ?>
                 </button>
             <?php endforeach; ?>

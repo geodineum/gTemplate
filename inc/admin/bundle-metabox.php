@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Per-Post Bundle Meta Box for gTemplate
  *

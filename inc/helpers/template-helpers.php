@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Template Library Helper Functions
  *
@@ -12,50 +13,6 @@
 
 if (!defined('ABSPATH')) {
     exit;
-}
-
-/**
- * Get available template choices for customizer select control
- *
- * @return array Associative array of template_id => template_name
- */
-function gtemplate_get_template_choices(): array {
-    $choices = ['' => __('-- Select Template --', 'gtemplate')];
-
-    try {
-        // Try to get templates from gCore TemplateLibrary
-        global $gCore;
-        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('TemplateLibrary')) {
-            $library = $gCore->getService('TemplateLibrary');
-            if ($library && method_exists($library, 'listTemplates')) {
-                $templates = $library->listTemplates();
-                foreach ($templates as $template) {
-                    $id = $template['id'] ?? '';
-                    $name = $template['name'] ?? $id;
-                    if ($id) {
-                        $choices[$id] = $name;
-                    }
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        // Log error but don't break customizer
-        error_log('[gTemplate] Failed to load templates from TemplateLibrary: ' . $e->getMessage());
-    }
-
-    // Always include built-in templates as fallback
-    $builtInTemplates = [
-        'contact-form' => __('Contact Form', 'gtemplate'),
-        'newsletter-signup' => __('Newsletter Signup', 'gtemplate'),
-    ];
-
-    foreach ($builtInTemplates as $id => $name) {
-        if (!isset($choices[$id])) {
-            $choices[$id] = $name;
-        }
-    }
-
-    return $choices;
 }
 
 /**
@@ -81,7 +38,7 @@ function gtemplate_get_template_content(string $templateName): ?string {
             }
         }
     } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to get template from TemplateLibrary: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] Failed to get template from TemplateLibrary: ' . $e->getMessage());
     }
 
     // Fallback to local template files
@@ -126,24 +83,35 @@ function gtemplate_is_form_template(string $templateName): bool {
 }
 
 /**
- * Generate CSRF token for form templates
+ * Generate CSRF token for form templates.
+ *
+ * Routes through gCore SecurityManager (canonical CSRF surface — full
+ * cryptographically-secure, session-aware, per-action TTL) when available.
+ * Falls back to the WordPress nonce API for free-tier installs and any
+ * environment where SecurityManager isn't reachable.
+ *
+ * (Pre-Ch.1.A this called TemplateLibrary::generateCSRFToken which lived
+ * in `.archive/`; since the live service was missing, every request hit
+ * the wp_create_nonce fallback, silently bypassing the framework's
+ * security primitives. ROADMAP §B.5 closure.)
  *
  * @return string CSRF token
  */
 function gtemplate_generate_csrf_token(): string {
     try {
         global $gCore;
-        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('TemplateLibrary')) {
-            $library = $gCore->getService('TemplateLibrary');
-            if ($library && method_exists($library, 'generateCSRFToken')) {
-                return $library->generateCSRFToken();
+        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('SecurityManager')) {
+            $security = $gCore->getService('SecurityManager');
+            if ($security && method_exists($security, 'generateCsrfToken')) {
+                return $security->generateCsrfToken('gtemplate_form_submit');
             }
         }
     } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to generate CSRF token: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] Failed to generate CSRF token via SecurityManager: ' . $e->getMessage(), [], 'WARNING');
     }
 
-    // Fallback to WordPress nonce
+    // Fallback to WordPress nonce — used in free-tier installs and any
+    // bootstrap path where gCore isn't initialized yet.
     return wp_create_nonce('gcore_form_submit');
 }
 
@@ -232,103 +200,3 @@ function gtemplate_get_template_variables(string $templateName, int $faceId = 0,
     return apply_filters('gtemplate_template_variables', $variables, $templateName, $faceId);
 }
 
-/**
- * Get security fields HTML for form templates
- *
- * @return string HTML for hidden security fields
- */
-function gtemplate_get_security_fields_html(): string {
-    try {
-        global $gCore;
-        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('TemplateLibrary')) {
-            $library = $gCore->getService('TemplateLibrary');
-            if ($library && method_exists($library, 'generateSecurityFieldsHtml')) {
-                $csrfToken = gtemplate_generate_csrf_token();
-                return $library->generateSecurityFieldsHtml($csrfToken);
-            }
-        }
-    } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to generate security fields: ' . $e->getMessage());
-    }
-
-    // Fallback
-    $csrfToken = gtemplate_generate_csrf_token();
-    $timestamp = time();
-
-    return <<<HTML
-<input type="hidden" name="_csrf_token" value="{$csrfToken}">
-<input type="hidden" name="_form_load_time" value="{$timestamp}">
-<input type="hidden" name="_js_challenge" value="">
-<input type="hidden" name="_behavior_data" value="">
-HTML;
-}
-
-/**
- * Get honeypot fields HTML for form templates
- *
- * @return string HTML for honeypot fields (hidden spam protection)
- */
-function gtemplate_get_honeypot_fields_html(): string {
-    try {
-        global $gCore;
-        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('TemplateLibrary')) {
-            $library = $gCore->getService('TemplateLibrary');
-            if ($library && method_exists($library, 'generateHoneypotFieldsHtml')) {
-                return $library->generateHoneypotFieldsHtml();
-            }
-        }
-    } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to generate honeypot fields: ' . $e->getMessage());
-    }
-
-    // Fallback
-    return <<<HTML
-<div class="hp-container" style="display:none !important; visibility:hidden; position:absolute; left:-9999px;" aria-hidden="true">
-    <input type="url" name="website_url" autocomplete="url" tabindex="-1">
-    <input type="tel" name="phone_number_2" autocomplete="tel" tabindex="-1">
-    <input type="text" name="company_fax" autocomplete="fax" tabindex="-1">
-</div>
-HTML;
-}
-
-/**
- * Get security JavaScript for form templates
- *
- * @param string $formId Form element ID
- * @return string JavaScript code
- */
-function gtemplate_get_security_javascript(string $formId): string {
-    try {
-        global $gCore;
-        if ($gCore && method_exists($gCore, 'hasService') && $gCore->hasService('TemplateLibrary')) {
-            $library = $gCore->getService('TemplateLibrary');
-            if ($library && method_exists($library, 'generateSecurityJavaScript')) {
-                return $library->generateSecurityJavaScript($formId);
-            }
-        }
-    } catch (\Throwable $e) {
-        error_log('[gTemplate] Failed to generate security JavaScript: ' . $e->getMessage());
-    }
-
-    // Fallback minimal JS
-    return <<<JS
-<script>
-(function() {
-    var form = document.getElementById('{$formId}');
-    if (!form) return;
-
-    var challengeField = form.querySelector('input[name="_js_challenge"]');
-    if (challengeField) {
-        var timestamp = Math.floor(Date.now() / 1000);
-        var random = Math.random().toString(36).substring(2, 10);
-        challengeField.value = 'gcore_' + timestamp + '_' + random;
-    }
-
-    var loadTimeField = form.querySelector('input[name="_form_load_time"]');
-    if (loadTimeField && !loadTimeField.value) {
-        loadTimeField.value = Math.floor(Date.now() / 1000);
-    }
-})();
-</script>
-JS;
-}

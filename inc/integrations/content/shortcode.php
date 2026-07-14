@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Shortcode Integration for gTemplate
  *
@@ -67,7 +68,7 @@ function gtemplate_shortcode_template($atts) {
             }
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate shortcode template error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate shortcode template error: ' . $e->getMessage());
     }
 
     // Fallback
@@ -170,7 +171,7 @@ function gtemplate_shortcode_bundle($atts) {
             }
         }
     } catch (\Throwable $e) {
-        error_log('gTemplate shortcode bundle error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate shortcode bundle error: ' . $e->getMessage());
     }
 
     return '<!-- gtemplate_bundle: not available -->';
@@ -281,6 +282,32 @@ add_shortcode('gtemplate_lazy_face', 'gtemplate_shortcode_lazy_face');
 // =============================================================================
 
 /**
+ * Whether a REAL inference backend is available (not the inert base-tier
+ * stub). Ch.1 resolves InferenceManager to the stub, whose isAvailable()
+ * returns false, so the AI shortcodes below render nothing; the Chapter-2
+ * Geodine-backed gcore-inference extension makes isAvailable() true and
+ * lights them up. Gate on isAvailable() — NOT method_exists(): the stub
+ * implements every method (method_exists is always true) but no-ops.
+ */
+function gtemplate_ai_available(): bool {
+    global $gCore;
+
+    if (!$gCore) {
+        return false;
+    }
+
+    try {
+        $inference = $gCore->getService('InferenceManager');
+    } catch (\Throwable $e) {
+        return false;
+    }
+
+    return $inference !== null
+        && method_exists($inference, 'isAvailable')
+        && $inference->isAvailable();
+}
+
+/**
  * Generate AI text via InferenceManager
  *
  * Usage:
@@ -292,6 +319,12 @@ add_shortcode('gtemplate_lazy_face', 'gtemplate_shortcode_lazy_face');
  * @return string Generated text
  */
 function gtemplate_shortcode_ai($atts) {
+    // Ch.1 ships the inert InferenceManager stub — render nothing rather than
+    // a dead/misleading fallback comment. Lights up under the Chapter-2 extension.
+    if (!gtemplate_ai_available()) {
+        return '';
+    }
+
     $atts = shortcode_atts([
         'prompt' => '',
         'model' => 'llama3',
@@ -340,7 +373,7 @@ function gtemplate_shortcode_ai($atts) {
         return $atts['fallback'] ?: '<!-- gtemplate_ai: generation failed -->';
 
     } catch (\Throwable $e) {
-        error_log('gTemplate AI shortcode error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate AI shortcode error: ' . $e->getMessage());
         return $atts['fallback'] ?: '<!-- gtemplate_ai: error -->';
     }
 }
@@ -358,6 +391,11 @@ add_shortcode('gtemplate_ai', 'gtemplate_shortcode_ai');
  * @return string Summary
  */
 function gtemplate_shortcode_ai_summary($atts, $content = null) {
+    // Inference-backed: stays dark on the Ch.1 stub (see gtemplate_ai_available).
+    if (!gtemplate_ai_available()) {
+        return '';
+    }
+
     if (empty($content)) {
         return '';
     }
@@ -399,6 +437,13 @@ add_shortcode('gtemplate_ai_summary', 'gtemplate_shortcode_ai_summary');
  * @return string Chat interface HTML
  */
 function gtemplate_shortcode_ai_chat($atts) {
+    // Ch.1 ships the inert InferenceManager stub — do not render a functional-
+    // looking chat widget whose /ai/chat endpoint can only ever error. Lights
+    // up under the Chapter-2 Geodine-backed gcore-inference extension.
+    if (!gtemplate_ai_available()) {
+        return '';
+    }
+
     $atts = shortcode_atts([
         'model' => 'llama3',
         'placeholder' => 'Type your message...',
@@ -454,14 +499,18 @@ add_action('rest_api_init', function() {
         ]
     ]);
 
-    // AI chat endpoint for HTMX
+    // AI chat endpoint for HTMX.
+    //
+    // Commit 1.11.b: anonymous access preserved (chat
+    // widget is for site visitors), but the handler now applies
+    // a per-IP rate-limit via SecurityManager BEFORE calling
+    // InferenceManager. Pre-fix `permission_callback => function() {
+    // return true; }` documented the gap as a TODO that never
+    // landed. Mirrors the gCube CB-D2.02 fix from Commit 1.8.b.
     register_rest_route(gtemplate_get_rest_namespace(), '/ai/chat', [
         'methods' => 'POST',
         'callback' => 'gtemplate_shortcode_rest_ai_chat',
-        'permission_callback' => function() {
-            // Allow authenticated users or apply rate limiting for anonymous
-            return true;
-        },
+        'permission_callback' => '__return_true',
         'args' => [
             'message' => [
                 'type' => 'string',
@@ -536,6 +585,35 @@ function gtemplate_shortcode_rest_ai_chat($request) {
         );
     }
 
+    // Commit 1.11.b: per-IP rate limit before any LLM
+    // work. 20 req/60s; 429 + HTMX-error fragment on exceedance.
+    // Identifier comes from gtemplate_get_client_identifier (XFF-
+    // safe via GTEMPLATE_TRUST_PROXY in 1.11.d).
+    try {
+        $security = $gCore->getService('Security');
+        if ($security && method_exists($security, 'validateAPIRequest')) {
+            $identifier = function_exists('gtemplate_get_client_identifier')
+                ? gtemplate_get_client_identifier()
+                : ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+            $validation = $security->validateAPIRequest($request, [
+                'rate_limit' => [
+                    'limit' => 20,
+                    'window' => 60,
+                    'identifier' => 'ai_chat:' . $identifier,
+                ],
+            ]);
+            if (!$validation['valid']) {
+                return new WP_REST_Response(
+                    '<div class="gtemplate-chat-error">Too many requests. Please wait a moment before trying again.</div>',
+                    429,
+                    ['Content-Type' => 'text/html; charset=utf-8']
+                );
+            }
+        }
+    } catch (\Throwable $e) {
+        gtemplate_track_error('[gTemplate] /ai/chat rate-limit check failed: ' . preg_replace('/[\r\n\t]+/', ' ', $e->getMessage()));
+    }
+
     try {
         $inference = $gCore->getService('InferenceManager');
 
@@ -579,7 +657,7 @@ function gtemplate_shortcode_rest_ai_chat($request) {
         );
 
     } catch (\Throwable $e) {
-        error_log('gTemplate AI chat error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate AI chat error: ' . $e->getMessage());
         return new WP_REST_Response(
             '<div class="gtemplate-chat-error">Error processing request</div>',
             200,
@@ -623,54 +701,14 @@ function gtemplate_shortcode_rest_ai_generate($request) {
     }
 }
 
-// =============================================================================
-// INITIALIZATION
-// =============================================================================
-
-/**
- * Initialize InferenceManager with gNode client
- * NOTE: This function is now defined in inference-integration.php
- * Keeping this as a fallback for backward compatibility only
- */
-if (!function_exists('gtemplate_init_inference_manager')) {
-    function gtemplate_init_inference_manager() {
-        global $gCore;
-
-        if (!$gCore) {
-            return;
-        }
-
-        try {
-            // Get InferenceManager via gCore resolver (returns stub or premium automatically)
-            $inference = $gCore->getService('InferenceManager');
-
-            if (!$inference->isInitialized()) {
-                $gnode_client = $GLOBALS['gtemplate_gnode_client'] ?? null;
-
-                $inference->initialize([
-                    'site_id' => gtemplate_get_site_id(),
-                    'node_id' => 'web-' . gethostname(),
-                    'use_gnode' => $gnode_client !== null,
-                    'gnode_client' => $gnode_client,
-                    'ollama_base_url' => defined('OLLAMA_BASE_URL')
-                        ? OLLAMA_BASE_URL
-                        : 'http://localhost:11434/api',
-                    'cache_enabled' => true,
-                    'debug' => defined('WP_DEBUG') && WP_DEBUG,
-                ]);
-
-                error_log('[gTemplate] InferenceManager initialized for shortcodes');
-            }
-
-        } catch (\Throwable $e) {
-            error_log('[gTemplate] InferenceManager init failed: ' . $e->getMessage());
-        }
-    }
-}
-
-// Initialize on wp_loaded (after gCore is ready)
-// Note: InferenceManager requires Ollama running. Disabled by default.
-// Uncomment below line to enable: add_action('wp_loaded', 'gtemplate_init_inference_manager', 20);
+// Commit 1.10.a: the duplicate gtemplate_init_inference_manager
+// previously defined here was load-order-shadowed by the canonical
+// definition in inc/integrations/managers/inference.php (the latter wins
+// because integrations/index.php loads managers/ before content/, and
+// the function_exists wrapper makes the second definition a no-op). The
+// dead branch contained a hardcoded `OLLAMA_BASE_URL` fallback +
+// referenced a non-existent inference-integration.php file. Removed
+// entirely; canonical lives in managers/inference.php.
 
 // =============================================================================
 // CSS FOR SHORTCODE ELEMENTS
@@ -701,4 +739,269 @@ function gtemplate_shortcode_styles() {
 }
 add_action('wp_enqueue_scripts', 'gtemplate_shortcode_styles', 20);
 
-error_log('[gTemplate shortcode-integration.php] Loaded');
+// =============================================================================
+// PHI BUTTON — golden-ratio CTA shortcode
+// =============================================================================
+
+/**
+ * Print the Phi-button CSS + JS exactly once per request. Vars are prefixed
+ * --gb-* and scoped to .gbtn so they never clobber the theme's :root tokens.
+ */
+function gtemplate_gbtn_assets(): string {
+    static $printed = false;
+    if ($printed) {
+        return '';
+    }
+    $printed = true;
+    return <<<'HTML'
+<style id="gbtn-css">
+.gbtn{
+  --gb-gold:#c9a961;--gb-gold-bright:#e8c468;--gb-gold-soft:#8d7944;--gb-good:#6fd388;
+  --gb-bg-1:#111118;--gb-line:#2a2a35;
+  --gb-text:#d4d4dc;--gb-s3:13px;--gb-s4:21px;--gb-s5:34px;--gb-t3:.944rem;--gb-t4:1rem;
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.382em;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:var(--gb-t4);line-height:1;
+  padding:var(--gb-s3) var(--gb-s4);border:0;background:transparent;color:var(--gb-text);cursor:pointer;isolation:isolate;text-decoration:none;
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease,color .35s ease,border-color .35s ease;}
+.gbtn .gb-label{position:relative;z-index:2;display:inline-block;white-space:nowrap;}
+.gbtn:focus-visible{outline:2px solid var(--gb-gold-bright);outline-offset:3px;}
+.gb-lift{border:1px solid var(--gb-gold-soft);color:var(--gb-gold-bright);letter-spacing:.18em;text-transform:uppercase;font-size:var(--gb-t3);background:linear-gradient(180deg,rgba(201,169,97,.06),transparent);}
+.gb-lift:hover{transform:translateY(-7px);border-color:var(--gb-gold-bright);box-shadow:0 18px 40px rgba(0,0,0,.55),0 0 40px rgba(201,169,97,.22);}
+.gb-lift:active{transform:translateY(-2px);transition-duration:.09s;box-shadow:0 4px 12px rgba(0,0,0,.5),0 0 20px rgba(201,169,97,.18);}
+.gb-sweep{border:1px solid var(--gb-line);background:var(--gb-bg-1);color:var(--gb-gold-bright);letter-spacing:.18em;text-transform:uppercase;font-size:var(--gb-t3);overflow:hidden;}
+.gb-sweep::before{content:"";position:absolute;top:0;bottom:0;left:-160%;width:55%;z-index:0;background:linear-gradient(100deg,transparent,rgba(232,196,104,.4),transparent);transform:skewX(-20deg);transition:left .65s ease;}
+.gb-sweep:hover{border-color:var(--gb-gold);box-shadow:0 0 34px rgba(201,169,97,.2);}
+.gb-sweep:hover::before{left:160%;}
+.gb-sweep:active{transform:scale(.98);}
+.gb-facet{color:var(--gb-gold-bright);letter-spacing:.18em;text-transform:uppercase;font-size:var(--gb-t3);}
+.gb-facet::before,.gb-facet::after{content:"";position:absolute;width:21px;height:21px;z-index:0;transition:width .45s cubic-bezier(.2,.8,.2,1),height .45s cubic-bezier(.2,.8,.2,1);}
+.gb-facet::before{top:0;right:0;border-top:1px solid var(--gb-gold);border-right:1px solid var(--gb-gold);}
+.gb-facet::after{bottom:0;left:0;border-bottom:1px solid var(--gb-gold);border-left:1px solid var(--gb-gold);}
+.gb-facet:hover{color:#fff;}
+.gb-facet:hover::before,.gb-facet:hover::after{width:100%;height:100%;}
+.gb-facet:active{transform:scale(.96);}
+.gbtn.is-success{background:var(--gb-bg-1)!important;color:var(--gb-good)!important;border-color:var(--gb-good)!important;box-shadow:0 0 var(--gb-s5) rgba(111,211,136,.32)!important;transform:none!important;text-shadow:none!important;pointer-events:none;}
+.gbtn.is-success::before,.gbtn.is-success::after{opacity:0!important;}
+.gbtn.is-success .gb-label{color:var(--gb-good)!important;transform:none!important;}
+.gb-panel{margin-top:var(--gb-s3);}
+</style>
+<script>
+(function(){
+  if(window.__gbtnInit)return; window.__gbtnInit=true;
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest('.gbtn'); if(!btn)return;
+    var reveal=btn.getAttribute('data-reveal');
+    if(reveal){var p=document.getElementById(reveal); if(p){p.hidden=!p.hidden; btn.setAttribute('aria-expanded',String(!p.hidden));} return;}
+    if(btn.tagName==='A')return;            /* links navigate natively */
+    var label=btn.querySelector('.gb-label');
+    if(!label||btn.classList.contains('is-success'))return;
+    var original=label.textContent||'';
+    label.textContent=btn.getAttribute('data-success')||'Requested ✓';
+    btn.classList.add('is-success');
+    setTimeout(function(){btn.classList.remove('is-success');label.textContent=original;},1800);
+  });
+})();
+</script>
+HTML;
+}
+
+/**
+ * Golden-ratio "Phi Lift" CTA button. Drop into any post/page content.
+ *
+ * Usage:
+ *   [gbtn label="Request access" href="https://example.com/apply"]
+ *   [gbtn label="Read the brief" page="42"]              (WP page id or slug)
+ *   [gbtn label="Details"]<p>Custom HTML revealed on click</p>[/gbtn]
+ *   [gbtn label="Notify me" success="Requested ✓"]       (no target → success toast)
+ *
+ * Attrs: label, href, page, success, variant (default "lift"), target, class
+ */
+function gtemplate_shortcode_gbtn($atts, $content = null) {
+    $atts = shortcode_atts([
+        'label'   => 'Request access',
+        'href'    => '',
+        'page'    => '',
+        'success' => 'Requested ✓',
+        'variant' => 'lift',
+        'target'  => '_self',
+        'class'   => '',
+    ], $atts, 'gbtn');
+
+    // Resolve the target: a WP page (id or slug) → permalink, else a raw URL.
+    $url = '';
+    if ($atts['page'] !== '') {
+        $p = is_numeric($atts['page'])
+            ? get_post((int) $atts['page'])
+            : get_page_by_path(sanitize_title($atts['page']));
+        if ($p) {
+            $url = (string) get_permalink($p);
+        }
+    }
+    if ($url === '' && $atts['href'] !== '') {
+        $url = $atts['href'];
+    }
+
+    $variant = preg_match('/^[a-z0-9_-]+$/', (string) $atts['variant']) ? $atts['variant'] : 'lift';
+    $classes = trim('gbtn gb-' . $variant . ($atts['class'] ? ' ' . $atts['class'] : ''));
+    $label   = esc_html($atts['label']);
+    $success = esc_attr($atts['success'] !== '' ? $atts['success'] : 'Requested ✓');
+    $target  = in_array($atts['target'], ['_self', '_blank', '_parent', '_top'], true) ? $atts['target'] : '_self';
+
+    // Enclosed custom HTML → revealed in a panel on click.
+    $reveal = ($content !== null && trim($content) !== '') ? do_shortcode($content) : '';
+
+    $out = gtemplate_gbtn_assets();
+
+    if ($url !== '') {
+        $out .= sprintf(
+            '<a class="%s" href="%s" target="%s"%s data-success="%s"><span class="gb-label">%s</span></a>',
+            esc_attr($classes), esc_url($url), esc_attr($target),
+            ($target === '_blank' ? ' rel="noopener noreferrer"' : ''),
+            $success, $label
+        );
+    } elseif ($reveal !== '') {
+        $pid = 'gbtn-panel-' . (function_exists('wp_unique_id') ? wp_unique_id() : substr(md5($reveal . microtime()), 0, 8));
+        $out .= sprintf(
+            '<button type="button" class="%s" data-success="%s" data-reveal="%s" aria-expanded="false" aria-controls="%s"><span class="gb-label">%s</span></button><div id="%s" class="gb-panel" hidden>%s</div>',
+            esc_attr($classes), $success, esc_attr($pid), esc_attr($pid), $label, esc_attr($pid), $reveal
+        );
+    } else {
+        $out .= sprintf(
+            '<button type="button" class="%s" data-success="%s"><span class="gb-label">%s</span></button>',
+            esc_attr($classes), $success, $label
+        );
+    }
+    return $out;
+}
+add_shortcode('gbtn', 'gtemplate_shortcode_gbtn');
+add_shortcode('geo_button', 'gtemplate_shortcode_gbtn');
+
+// =============================================================================
+// [gform] — generic data-capturing form. Every submission lands in the
+// per-form stream {site}:forms:<id> (see gtemplate_rest_submit_form).
+// =============================================================================
+
+/**
+ * Print the [gform] CSS + JS exactly once per request. Scoped under .gform.
+ */
+function gtemplate_gform_assets(): string {
+    static $printed = false;
+    if ($printed) {
+        return '';
+    }
+    $printed = true;
+    $rest = esc_url_raw(rest_url(gtemplate_get_rest_namespace() . '/form/submit'));
+    return <<<HTML
+<style id="gform-css">
+.gform{--gf-gold:#e8c468;--gf-soft:#8d7944;--gf-good:#6fd388;--gf-bad:#e07a7a;--gf-text:#d4d4dc;
+  display:grid;gap:13px;max-width:560px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--gf-text);}
+.gform label{display:grid;gap:5px;font-size:.86rem;letter-spacing:.02em;}
+.gform input,.gform textarea,.gform select{background:rgba(17,17,24,.6);border:1px solid var(--gf-soft);border-radius:6px;color:var(--gf-text);padding:10px 12px;font:inherit;width:100%;box-sizing:border-box;}
+.gform input:focus,.gform textarea:focus{outline:2px solid var(--gf-gold);outline-offset:1px;border-color:var(--gf-gold);}
+.gform textarea{min-height:120px;resize:vertical;}
+.gform .gf-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden;}
+.gform .gf-consent{display:flex;align-items:flex-start;gap:8px;font-size:.82rem;}
+.gform .gf-consent input{width:auto;margin-top:3px;}
+.gform button{justify-self:start;border:1px solid var(--gf-soft);background:linear-gradient(180deg,rgba(201,169,97,.08),transparent);color:var(--gf-gold);
+  letter-spacing:.16em;text-transform:uppercase;font-size:.86rem;padding:12px 26px;border-radius:6px;cursor:pointer;transition:transform .3s,box-shadow .3s,border-color .3s;}
+.gform button:hover{transform:translateY(-3px);border-color:var(--gf-gold);box-shadow:0 12px 28px rgba(0,0,0,.45);}
+.gform button[disabled]{opacity:.5;pointer-events:none;}
+.gform .gf-msg{font-size:.9rem;min-height:1.2em;}
+.gform .gf-msg.ok{color:var(--gf-good);}
+.gform .gf-msg.err{color:var(--gf-bad);}
+</style>
+<script>
+(function(){
+  if(window.__gformInit)return; window.__gformInit=true;
+  var EP="$rest";
+  document.addEventListener('submit',function(e){
+    var f=e.target; if(!f.classList||!f.classList.contains('gform'))return;
+    e.preventDefault();
+    if(f.dataset.busy)return; f.dataset.busy="1";
+    var btn=f.querySelector('button'), msg=f.querySelector('.gf-msg');
+    var jc=f.querySelector('input[name=_js_challenge]'); if(jc)jc.value='gcore_'+Date.now().toString(36);
+    var data={}; new FormData(f).forEach(function(v,k){data[k]=v;});
+    var c=f.querySelector('input[name=consent]'); data.consent=(c&&c.checked)?'1':'';
+    if(btn)btn.disabled=true; if(msg){msg.textContent='';msg.className='gf-msg';}
+    fetch(EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(msg){msg.textContent=j.success?(f.dataset.success||j.message||'Thank you.'):(j.error||j.message||'Error');msg.className='gf-msg '+(j.success?'ok':'err');}
+        if(j.success){f.reset();}else if(btn){btn.disabled=false;}
+      })
+      .catch(function(){if(msg){msg.textContent='Network error. Please try again.';msg.className='gf-msg err';}if(btn)btn.disabled=false;})
+      .finally(function(){f.dataset.busy="";});
+  });
+})();
+</script>
+HTML;
+}
+
+/**
+ * Generic data-capturing form. Every submission lands in {site}:forms:<id>.
+ *
+ * Usage:
+ *   [gform id="signup" fields="name:text:Your name*,email:email:Email*,msg:textarea:Message"
+ *          submit="Join" consent="I agree to be contacted" success="You're on the list."]
+ *
+ * fields = comma-separated  name:type:Label   (trailing * on the label = required)
+ * types: text, email, tel, number, textarea, url
+ *
+ * deliver="email" also dispatches the submission to gNode-COMMS for email
+ * (needs name/email/message fields); omit it for capture-only forms.
+ */
+function gtemplate_shortcode_gform($atts, $content = null) {
+    $atts = shortcode_atts([
+        'id'      => '',
+        'fields'  => 'name:text:Name*,email:email:Email*,message:textarea:Message',
+        'submit'  => 'Send',
+        'consent' => 'I consent to my submission being stored and used to contact me.',
+        'success' => '',
+        'deliver' => '',
+        'class'   => '',
+    ], $atts, 'gform');
+
+    $form_id = preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $atts['id']));
+    if ($form_id === '') { $form_id = 'default'; }
+
+    $allowed = ['text', 'email', 'tel', 'number', 'textarea', 'url'];
+    $rows = '';
+    foreach (explode(',', (string) $atts['fields']) as $spec) {
+        $parts = array_map('trim', explode(':', $spec));
+        if (count($parts) < 2 || $parts[0] === '') { continue; }
+        $name = sanitize_key($parts[0]);
+        $type = in_array($parts[1], $allowed, true) ? $parts[1] : 'text';
+        $label = $parts[2] ?? ucfirst($name);
+        $required = '';
+        if (substr($label, -1) === '*') { $required = ' required'; $label = rtrim(substr($label, 0, -1)); }
+        $lbl = esc_html($label);
+        $nm  = esc_attr($name);
+        $rows .= ($type === 'textarea')
+            ? "<label>{$lbl}<textarea name=\"{$nm}\"{$required}></textarea></label>"
+            : "<label>{$lbl}<input type=\"" . esc_attr($type) . "\" name=\"{$nm}\"{$required}></label>";
+    }
+
+    $cls = trim('gform ' . sanitize_html_class((string) $atts['class']));
+    $src = esc_url(home_url($_SERVER['REQUEST_URI'] ?? '/'));
+
+    $html  = gtemplate_gform_assets();
+    $html .= '<form class="' . esc_attr($cls) . '" novalidate' .
+             ($atts['success'] !== '' ? ' data-success="' . esc_attr($atts['success']) . '"' : '') . '>';
+    $html .= '<input type="hidden" name="form_id" value="' . esc_attr($form_id) . '">';
+    if (strtolower((string) $atts['deliver']) === 'email') {
+        $html .= '<input type="hidden" name="deliver" value="email">';
+    }
+    $html .= '<input type="hidden" name="_form_load_time" value="' . time() . '">';
+    $html .= '<input type="hidden" name="_js_challenge" value="">';
+    $html .= '<input type="hidden" name="source_url" value="' . $src . '">';
+    $html .= $rows;
+    $html .= '<span class="gf-hp" aria-hidden="true"><label>Website<input type="text" name="website_url" tabindex="-1" autocomplete="off"></label></span>';
+    $html .= '<label class="gf-consent"><input type="checkbox" name="consent" value="1" required><span>' . esc_html($atts['consent']) . '</span></label>';
+    $html .= '<button type="submit">' . esc_html($atts['submit']) . '</button>';
+    $html .= '<div class="gf-msg" role="status" aria-live="polite"></div>';
+    $html .= '</form>';
+    return $html;
+}
+add_shortcode('gform', 'gtemplate_shortcode_gform');
+

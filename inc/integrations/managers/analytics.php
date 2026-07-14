@@ -1,10 +1,11 @@
 <?php
+declare(strict_types=1);
 /**
  * Analytics Integration for gTemplate Theme
  *
  * Provides graceful privacy-first analytics:
- * - Premium: Full gNode-based analytics with visitor tracking
- * - Free-tier: Stub implementation with no tracking
+ * - Extension: Full gNode-based analytics with visitor tracking
+ * - Default: Stub implementation with no tracking
  *
  * @package     gTemplate
  * @subpackage  Inc
@@ -27,13 +28,13 @@ function gtemplate_init_analytics_manager($gNodeClient = null) {
 
     if (!$gCore) {
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            error_log('[gTemplate] AnalyticsManager: gCore not available');
+            gtemplate_track_error('[gTemplate] AnalyticsManager: gCore not available');
         }
         return;
     }
 
     try {
-        // Get AnalyticsManager via gCore resolver (returns stub or premium automatically)
+        // Get AnalyticsManager via gCore resolver (returns stub or extension automatically)
         $manager = $gCore->getService('AnalyticsManager');
         $manager->initialize([
             'site_id' => gtemplate_get_site_id(),
@@ -44,19 +45,19 @@ function gtemplate_init_analytics_manager($gNodeClient = null) {
         $GLOBALS['gtemplate_analytics_manager'] = $manager;
 
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) {
-            $mode = $gCore->isPremiumInstalled('AnalyticsManager') ? 'premium' : 'stub';
-            error_log("[gTemplate] AnalyticsManager initialized ({$mode} mode)");
+            $mode = $gCore->isExtensionInstalled('AnalyticsManager') ? 'full' : 'stub';
+            gtemplate_track_error("[gTemplate] AnalyticsManager initialized ({$mode} mode)");
         }
 
     } catch (\Throwable $e) {
-        error_log('[gTemplate] AnalyticsManager initialization failed: ' . $e->getMessage());
+        gtemplate_track_error('[gTemplate] AnalyticsManager initialization failed: ' . $e->getMessage());
     }
 }
 
 /**
  * Get the AnalyticsManager instance
  *
- * @return \gCore\Modules\Core\Interfaces\Premium\AnalyticsManagerInterface|null
+ * @return \gCore\Modules\Core\Interfaces\Extensions\AnalyticsManagerInterface|null
  */
 function gtemplate_get_analytics_manager() {
     return $GLOBALS['gtemplate_analytics_manager'] ?? null;
@@ -143,7 +144,7 @@ function gtemplate_get_top_pages(string $startDate, string $endDate, int $limit 
 }
 
 /**
- * Check if analytics is available (premium)
+ * Check if analytics is available (requires extension)
  *
  * @return bool
  */

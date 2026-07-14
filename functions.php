@@ -1,12 +1,12 @@
 <?php
 /**
- * gTemplate-wp Parent Theme Functions
+ * gTemplate Parent Theme Functions
  *
  * Minimal entry point — loads the bootstrap autoloader which handles
  * all file loading in the correct dependency order.
  *
  * Child themes override behavior via filters defined in the
- * Filter Hook Registry (see MISSION_GTEMPLATE_WP.scn.md section 2).
+ * Filter Hook Registry.
  *
  * @package    gTemplate
  * @since      1.0.0

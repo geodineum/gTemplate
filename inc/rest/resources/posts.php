@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * REST API Resource: Posts
  *
@@ -219,7 +220,7 @@ function gtemplate_rest_get_post_bundle($request) {
                 }
             }
         } catch (\Throwable $e) {
-            error_log("[gTemplate Bundle] ValKey retrieval failed for post {$post_id}: " . $e->getMessage());
+            gtemplate_track_error("[gTemplate Bundle] ValKey retrieval failed for post {$post_id}: " . $e->getMessage());
         }
     }
 

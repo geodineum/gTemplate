@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * FormatManager Integration for gTemplate
  *
@@ -37,7 +38,7 @@ function gtemplate_init_format_manager() {
     try {
         $format = $gCore->getService('FormatManager');
         if (!$format) {
-            error_log('gTemplate: FormatManager not available from gCore');
+            gtemplate_track_error('gTemplate: FormatManager not available from gCore');
             return null;
         }
 
@@ -64,11 +65,11 @@ function gtemplate_init_format_manager() {
             gtemplate_register_formats($format);
         }
 
-        error_log('gTemplate: FormatManager initialized successfully');
+        gtemplate_track_error('gTemplate: FormatManager initialized successfully');
         return $format;
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: FormatManager init error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: FormatManager init error: ' . $e->getMessage());
         return null;
     }
 }
@@ -92,7 +93,7 @@ function gtemplate_register_formats($format): void {
                 'content_type' => 'application/json'
             ]
         );
-        error_log('gTemplate: Registered gtemplate_face_config format');
+        gtemplate_track_error('gTemplate: Registered gtemplate_face_config format');
 
         // Register REST API request format
         $format->registerFormat(
@@ -105,7 +106,7 @@ function gtemplate_register_formats($format): void {
                 'content_type' => 'application/json'
             ]
         );
-        error_log('gTemplate: Registered gtemplate_rest_request format');
+        gtemplate_track_error('gTemplate: Registered gtemplate_rest_request format');
 
         // Register render request format
         $format->registerFormat(
@@ -118,10 +119,10 @@ function gtemplate_register_formats($format): void {
                 'content_type' => 'application/json'
             ]
         );
-        error_log('gTemplate: Registered gtemplate_render_request format');
+        gtemplate_track_error('gTemplate: Registered gtemplate_render_request format');
 
     } catch (\Throwable $e) {
-        error_log('gTemplate: Format registration error: ' . $e->getMessage());
+        gtemplate_track_error('gTemplate: Format registration error: ' . $e->getMessage());
     }
 }
 
@@ -341,6 +342,8 @@ function gtemplate_get_format_manager() {
         $format = $gCore->getService('FormatManager');
         return ($format && $format->isInitialized()) ? $format : null;
     } catch (\Throwable $e) {
+        // Service-registry-not-ready (early init / late shutdown). Caller
+        // checks for null and degrades gracefully; logging would be noise.
         return null;
     }
 }
@@ -366,7 +369,7 @@ function gtemplate_validate_face_config(array $config): array {
             );
             return $result;
         } catch (\Throwable $e) {
-            error_log('gTemplate: gNode validation failed, using local: ' . $e->getMessage());
+            gtemplate_track_error('gTemplate: gNode validation failed, using local: ' . $e->getMessage());
         }
     }
 
@@ -454,7 +457,7 @@ function gtemplate_validate_render_request(array $request): array {
                 'gtemplate_render_request'
             );
         } catch (\Throwable $e) {
-            error_log('gTemplate: Render request validation error: ' . $e->getMessage());
+            gtemplate_track_error('gTemplate: Render request validation error: ' . $e->getMessage());
         }
     }
 
@@ -494,7 +497,7 @@ function gtemplate_detect_message_format(string $message): array {
         try {
             return $format->detectFormat($message);
         } catch (\Throwable $e) {
-            error_log('gTemplate: Format detection error: ' . $e->getMessage());
+            gtemplate_track_error('gTemplate: Format detection error: ' . $e->getMessage());
         }
     }
 

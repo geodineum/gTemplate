@@ -1,0 +1,86 @@
+{# templates/faces/blog-list.tera - Blog Post List Face #}
+<div class="cube-face-content blog-list" data-face-id="{{ face_id }}">
+  <header class="face-header">
+    <h1>{{ blog_name }} - Blog</h1>
+
+    {% if total_pages > 1 %}
+      <nav class="pagination">
+        {% if page > 1 %}
+          <button data-action="load-page" data-page="{{ page - 1 }}" class="prev-page">
+            ← Previous
+          </button>
+        {% endif %}
+
+        <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+
+        {% if page < total_pages %}
+          <button data-action="load-page" data-page="{{ page + 1 }}" class="next-page">
+            Next →
+          </button>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </header>
+
+  <main class="face-body">
+    {% if posts %}
+      <div class="posts-grid">
+        {% for post in posts %}
+          <article class="post-card" data-post-id="{{ post.id }}">
+            <div class="post-thumbnail">
+              {% if post.thumbnail %}
+                <img src="{{ post.thumbnail }}" alt="{{ post.title }}" loading="lazy">
+              {% else %}
+                <div class="placeholder-image"></div>
+              {% endif %}
+            </div>
+
+            <div class="post-meta">
+              <time datetime="{{ post.date_iso }}">{{ post.date_human }}</time>
+              {% if post.category %}
+                <span class="category">{{ post.category }}</span>
+              {% endif %}
+            </div>
+
+            <h3 class="post-title">{{ post.title }}</h3>
+
+            <div class="post-excerpt">
+              {{ post.excerpt | truncate(length=150) }}
+            </div>
+
+            <div class="post-actions">
+              <button class="read-more" data-action="load-post" data-post-id="{{ post.id }}">
+                Read Full Post →
+              </button>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No blog posts found.</p>
+        <button data-action="navigate-face" data-face="home">
+          Return Home
+        </button>
+      </div>
+    {% endif %}
+  </main>
+
+  <footer class="face-footer">
+    <p class="post-count">Showing {{ posts | length }} of {{ total_posts }} posts</p>
+
+    {% if total_pages > 1 %}
+      <nav class="pagination-footer">
+        {% for i in range(end=total_pages) %}
+          {% set page_num = i + 1 %}
+          <button
+            data-action="load-page"
+            data-page="{{ page_num }}"
+            class="page-number{% if page_num == page %} active{% endif %}">
+            {{ page_num }}
+          </button>
+        {% endfor %}
+      </nav>
+    {% endif %}
+  </footer>
+</div>

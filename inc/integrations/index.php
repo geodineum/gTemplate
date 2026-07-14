@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Integration Loader
  *
@@ -18,10 +19,9 @@
  * │   ├── template.php    - Template rendering
  * │   ├── metrics.php     - Performance metrics
  * │   ├── resource.php    - Resource hints
- * │   ├── keybased.php    - Key-based client integration
- * │   └── proxy-client.php - Unix socket proxy client
+ * │   └── keybased.php    - Key-based client integration
  * │
- * ├── managers/     - gCore premium service wrappers
+ * ├── managers/     - gCore extension service wrappers
  * │   ├── state.php       - StateManager
  * │   ├── analytics.php   - AnalyticsManager
  * │   ├── comms.php       - CommunicationsManager
@@ -57,10 +57,9 @@ require_once $integrations_dir . '/gnode/template.php';
 require_once $integrations_dir . '/gnode/metrics.php';
 require_once $integrations_dir . '/gnode/resource.php';
 require_once $integrations_dir . '/gnode/keybased.php';
-require_once $integrations_dir . '/gnode/proxy-client.php';
 
 //-----------------------------------------------------------------------------
-// gCore Manager Integrations (premium services with fallback stubs)
+// gCore Manager Integrations (extensions with fallback stubs)
 //-----------------------------------------------------------------------------
 
 require_once $integrations_dir . '/managers/state.php';
@@ -78,6 +77,7 @@ require_once $integrations_dir . '/features/seo.php';
 require_once $integrations_dir . '/features/llm-seo.php';
 require_once $integrations_dir . '/features/manifest.php';
 require_once $integrations_dir . '/features/cookie.php';
+require_once $integrations_dir . '/features/analytics-beacon.php';
 
 //-----------------------------------------------------------------------------
 // Content Integrations (content transformation)
