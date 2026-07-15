@@ -2,7 +2,7 @@
 Theme Name: gTemplate
 Theme URI: https://github.com/geodineum/gTemplate
 Description: Geodineum parent theme for WordPress. Provides the complete operational backbone — gCore framework integration, gNode connectivity, 3-tier rendering, REST API, customizer, CLI, and all service integrations. Child themes define only visual identity, geometry, and layout HTML. Works standalone with demo content or as a parent for gCube and custom child themes.
-Version: 1.0.0
+Version: 1.0.1
 Requires at least: 5.2
 Tested up to: 6.7
 Requires PHP: 7.4

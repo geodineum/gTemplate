@@ -75,8 +75,11 @@ function gtemplate_render_nav_cube_group($faces, $first_enabled, $face_label) {
         $cube_faces = apply_filters('gtemplate_nav_cube_face', $cube_faces, $index, $face);
 
         $active_class = $is_active ? ' active' : '';
+        // Anchor when the child supplies a URL (JS preventDefaults; href serves crawlers + middle-click)
+        $tag  = !empty($face['url']) ? 'a' : 'div';
+        $href = !empty($face['url']) ? ' href="' . esc_url($face['url']) . '"' : '';
         ?>
-        <div class="nav-cube-item<?php echo $active_class; ?>"
+        <<?php echo $tag; ?> class="nav-cube-item<?php echo $active_class; ?>"<?php echo $href; ?>
              data-face="<?php echo esc_attr($index); ?>"
              data-key="<?php echo esc_attr($key); ?>"
              aria-pressed="<?php echo $is_active ? 'true' : 'false'; ?>"
@@ -88,7 +91,7 @@ function gtemplate_render_nav_cube_group($faces, $first_enabled, $face_label) {
                     <?php endforeach; ?>
                 </div>
             </div>
-        </div>
+        </<?php echo $tag; ?>>
         <?php
     }
 }

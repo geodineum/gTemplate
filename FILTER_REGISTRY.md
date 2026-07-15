@@ -127,7 +127,7 @@ side effects.
 | --- | --- | --- |
 | `gtemplate_before_layout` | `array $faces, int $first_enabled` | Fired in `index.php` before the cube layout opens. Use to inject pre-layout markup or set up rendering context. |
 | `gtemplate_after_layout` | `array $faces, int $first_enabled` | Fired after the layout closes. Use for footer-side hooks, analytics pixels, etc. |
-| `gtemplate_render_navigation` | `array $faces, int $first_enabled` | Fired inside `index.php` where the nav element should render. The action's callback is responsible for emitting nav HTML. |
+| `gtemplate_render_navigation` | `array $faces, int $first_enabled` | Fired inside `index.php` where the nav element should render. The action's callback is responsible for emitting nav HTML. Each face may carry an optional `url` key; the cube-3d renderer then emits the item as an `<a href>` (real link for crawlers/middle-click, JS still preventDefaults) instead of a `<div>`. |
 | `gtemplate_cookie_consent_check` | `array $consent_status` | Fired when the cookie-consent banner evaluates current status. Use to bridge into a GTM/CMP integration. |
 | `gtemplate_register_customizer_sections` | `WP_Customize_Manager $wp_customize` | Fired during customizer init. Child themes register their own sections/controls here. |
 

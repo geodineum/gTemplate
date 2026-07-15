@@ -40,12 +40,15 @@
     --nav-cube-default-rotate-x: 0deg;
 }
 
-/* === CUBE ITEM — flex child of .nav-layer === */
+/* === CUBE ITEM — flex child of .nav-layer (div, or anchor when a URL is supplied) === */
 .nav-cube-item {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: transform var(--transition-speed, 0.4s) ease;
     margin: var(--nav-button-margin, 0);
+    display: block;
+    text-decoration: none;
+    color: inherit;
 }
 
 @media (max-width: 768px) and (orientation: portrait) {
