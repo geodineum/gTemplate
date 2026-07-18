@@ -341,6 +341,50 @@
     apply(current(), false); // sync button + meta to the pre-painted state
   }
 
+  // ─── Accent picker ─────────────────────────────────────────────────
+  // Ships an Ice-blue default; every visitor can pick their own accent family.
+  // Sets <html data-accent>, persisted to localStorage 'geo-accent'. The palette
+  // tokens (--a1/--a2/--a3) and the canvas wireframe read it live — no reload.
+  function initAccent() {
+    var root = document.documentElement;
+    if (root.hasAttribute('data-geo-no-accent-picker')) return;
+    // Only mount where a palette actually defines the accent tokens.
+    if (!getComputedStyle(root).getPropertyValue('--a1').trim()) return;
+    var accents = [['ice', '#5aa6ea'], ['magenta', '#e06b9a'], ['sodium', '#e6a24f'], ['acid', '#78c98e'], ['synth', '#b578e0']];
+    var wrap = document.querySelector('[data-geo-accent-picker]');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'geo-accent-picker';
+      wrap.setAttribute('data-geo-accent-picker', '');
+      wrap.setAttribute('role', 'group');
+      wrap.setAttribute('aria-label', 'Accent colour');
+      accents.forEach(function (a) {
+        var d = document.createElement('button');
+        d.type = 'button';
+        d.className = 'geo-accent-dot';
+        d.dataset.accent = a[0];
+        d.style.setProperty('--dot', a[1]);
+        d.setAttribute('aria-label', a[0]);
+        d.title = a[0];
+        d.addEventListener('click', function () {
+          root.setAttribute('data-accent', a[0]);
+          try { localStorage.setItem('geo-accent', a[0]); } catch (e) {}
+          sync();
+          window.dispatchEvent(new CustomEvent('geo:accentchange', { detail: { accent: a[0] } }));
+        });
+        wrap.appendChild(d);
+      });
+      (document.body || root).appendChild(wrap);
+    }
+    function sync() {
+      var cur = root.getAttribute('data-accent') || 'ice';
+      wrap.querySelectorAll('.geo-accent-dot').forEach(function (d) {
+        d.setAttribute('aria-pressed', d.dataset.accent === cur ? 'true' : 'false');
+      });
+    }
+    sync();
+  }
+
   // ─── Cascading tooltip engine (CK3-style), site-wide ───────────────
   // Extracted from the findings dashboard so every .geo page and every child
   // theme can reuse it: hover-delay open, nested hoverable terms, a hover-intent
@@ -432,6 +476,7 @@
 
   function init() {
     initTheme();
+    initAccent();
     initAudience();
     initTopbar();
     initReveal();

@@ -174,7 +174,9 @@ add_action('wp_head', 'gtemplate_customizer_css', 100);
  * the visitor's choice to localStorage. Emitted at wp_head:1, before styles.
  */
 function gtemplate_theme_boot() {
-    echo '<script>(function(){try{var s=localStorage.getItem("geo-theme");document.documentElement.setAttribute("data-theme",s==="light"?"light":"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}})();</script>' . "\n";
+    $accents = "['ice','magenta','sodium','acid','synth']";
+    echo '<script>(function(){var r=document.documentElement;try{var s=localStorage.getItem("geo-theme");r.setAttribute("data-theme",s==="light"?"light":"dark");}catch(e){r.setAttribute("data-theme","dark");}'
+       . 'try{var a=localStorage.getItem("geo-accent");r.setAttribute("data-accent",' . $accents . '.indexOf(a)>-1?a:"ice");}catch(e){r.setAttribute("data-accent","ice");}})();</script>' . "\n";
 }
 add_action('wp_head', 'gtemplate_theme_boot', 1);
 
