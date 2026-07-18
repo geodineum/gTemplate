@@ -743,7 +743,7 @@ function gtemplate_invalidate_post_bundle_cache(int $post_id): void {
                     $key = "{$site_id}:post_bundle:{$slug}";
 
                     // Delete the cached bundle
-                    $gNodeClient->fcall('GNODE_CACHE_DELETE', [], [$key, $site_id]);
+                    $gNodeClient->fcall('GNODE_CACHE_DEL', [], [$key, $site_id]);
                     $invalidated[] = $slug;
 
                     // Re-cache with updated data (deferred to avoid slowing save)
@@ -903,7 +903,7 @@ function gtemplate_invalidate_blog_bundle(int $post_id = 0): void {
         }
         $site_id = function_exists('\gTemplate\get_site_id_from_domain')
             ? \gTemplate\get_site_id_from_domain() : 'default';
-        $gNodeClient->fcall('GNODE_CACHE_DELETE', [], ["{$site_id}:post_bundle:__blog", $site_id]);
+        $gNodeClient->fcall('GNODE_CACHE_DEL', [], ["{$site_id}:post_bundle:__blog", $site_id]);
     } catch (\Throwable $e) {
         gtemplate_track_error('gTemplate: blog bundle invalidate error: ' . $e->getMessage());
     }

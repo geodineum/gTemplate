@@ -385,7 +385,7 @@ function gtemplate_invalidate_fullpage_cache(string $url): void {
         $path_hash = md5($path);
         $cache_key = "{{$site_id}}:cache:page:{$path_hash}";
 
-        $gNodeClient->fcall('GNODE_CACHE_DELETE', [], [$cache_key, $site_id]);
+        $gNodeClient->fcall('GNODE_CACHE_DEL', [], [$cache_key, $site_id]);
         gtemplate_track_error("gTemplate: Invalidated page cache for {$url}");
 
     } catch (\Throwable $e) {
@@ -435,29 +435,52 @@ add_action('save_post', 'gtemplate_invalidate_fullpage_cache_on_save', 100);
 
 /**
  * Invalidate all full-page cache (nuclear option)
+ *
+ * The cache Lua surface has no pattern-delete, so enumerate every cacheable
+ * URL and delete each key exactly the way GNODE_CACHE_SET wrote it.
  */
 function gtemplate_invalidate_all_fullpage_cache(): void {
     try {
         $gNodeClient = gtemplate_gnode();
         if (!$gNodeClient) {
+            error_log('gTemplate: FULL PAGE CACHE PURGE SKIPPED — no ValKey client (stale pages serve until TTL expiry)');
             return;
         }
 
-        $site_id = function_exists('\gTemplate\get_site_id_from_domain')
-            ? \gTemplate\get_site_id_from_domain()
-            : 'default';
-
-        // Delete all page cache keys for this site using SCAN + DELETE pattern
-        // For now, just log - proper implementation would use Lua script
-        gtemplate_track_error("gTemplate: Full page cache invalidation requested for {$site_id}");
-
-        // Schedule a proper cache clear via gNode
-        wp_schedule_single_event(time(), 'gtemplate_full_cache_clear_event', [$site_id]);
+        foreach (gtemplate_all_cacheable_urls() as $url) {
+            gtemplate_invalidate_fullpage_cache($url);
+        }
 
     } catch (\Throwable $e) {
         gtemplate_track_error('gTemplate: Full cache invalidation error: ' . $e->getMessage());
     }
 }
+
+/**
+ * Every URL the page cache may hold: home, published pages and posts,
+ * non-empty category archives.
+ *
+ * @return string[]
+ */
+function gtemplate_all_cacheable_urls(): array {
+    $urls = [home_url('/')];
+    foreach (get_pages(['post_status' => 'publish']) as $p) {
+        $urls[] = get_permalink($p);
+    }
+    foreach (get_posts(['numberposts' => 500, 'post_status' => 'publish']) as $p) {
+        $urls[] = get_permalink($p);
+    }
+    foreach (get_categories(['hide_empty' => true]) as $cat) {
+        $link = get_category_link($cat->term_id);
+        if (!is_wp_error($link)) {
+            $urls[] = $link;
+        }
+    }
+    return array_values(array_unique(array_filter($urls)));
+}
+
+// Events scheduled by older builds land here too; run the real purge.
+add_action('gtemplate_full_cache_clear_event', 'gtemplate_invalidate_all_fullpage_cache');
 
 // Invalidate full cache on customizer save (theme changes affect all pages)
 add_action('customize_save_after', 'gtemplate_invalidate_all_fullpage_cache', 100);
