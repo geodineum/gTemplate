@@ -60,6 +60,47 @@
             const { index } = e.detail;
             setActive(index);
         });
+
+        initTilt();
+    }
+
+    /**
+     * Parallax tilt — the cubes turn to face the cursor, so the whole nav ring
+     * feels like it is watching the pointer. Desktop + fine-pointer only; skips
+     * touch and reduced-motion. Inline transforms win over the CSS hover/active
+     * angles, so this replaces the static peek with live tracking.
+     */
+    function initTilt() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (window.matchMedia('(hover: none)').matches) return;
+        const cubes = Array.prototype.slice.call(document.querySelectorAll('.nav-cube'));
+        if (!cubes.length) return;
+
+        const HALF = 'calc(var(--nav-cube-size) / -2)';
+        const MAX = 24; // degrees of swing at the screen edge
+        cubes.forEach(c => { c.style.transition = 'transform 0.14s ease-out'; });
+
+        let raf = null, mx = 0, my = 0, tracking = false;
+        function apply() {
+            raf = null;
+            const halfW = window.innerWidth * 0.5, halfH = window.innerHeight * 0.5;
+            cubes.forEach(cube => {
+                const r = cube.parentElement.getBoundingClientRect();
+                const dx = Math.max(-1, Math.min(1, (mx - (r.left + r.width / 2)) / halfW));
+                const dy = Math.max(-1, Math.min(1, (my - (r.top + r.height / 2)) / halfH));
+                const ry = tracking ? dx * MAX : 0;
+                const rx = tracking ? -dy * MAX : 0;
+                cube.style.transform = `translateZ(${HALF}) rotateY(${ry.toFixed(1)}deg) rotateX(${rx.toFixed(1)}deg)`;
+            });
+        }
+        window.addEventListener('mousemove', e => {
+            tracking = true; mx = e.clientX; my = e.clientY;
+            if (!raf) raf = requestAnimationFrame(apply);
+        }, { passive: true });
+        document.addEventListener('mouseleave', () => {
+            tracking = false;
+            if (!raf) raf = requestAnimationFrame(apply);
+        });
     }
 
     /**
