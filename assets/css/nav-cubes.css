@@ -102,6 +102,9 @@
 
     background: var(--nav-cube-bg);
     border: 1px solid var(--nav-cube-border);
+    /* Every side gets the same radius: rounding only the front leaves square
+       corners on the sides that are visible whenever the cube is tilted. */
+    border-radius: var(--nav-cube-radius, 12px);
     backdrop-filter: var(--nav-cube-blur);
     -webkit-backdrop-filter: var(--nav-cube-blur);
     color: var(--nav-cube-text);

@@ -72,34 +72,73 @@
      */
     function initTilt() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        if (window.matchMedia('(hover: none)').matches) return;
         const cubes = Array.prototype.slice.call(document.querySelectorAll('.nav-cube'));
         if (!cubes.length) return;
 
         const HALF = 'calc(var(--nav-cube-size) / -2)';
-        const MAX = 24; // degrees of swing at the screen edge
+        const MAX = 24; // degrees of swing at the extremes
         cubes.forEach(c => { c.style.transition = 'transform 0.14s ease-out'; });
 
         let raf = null, mx = 0, my = 0, tracking = false;
+        // Gyro drives one shared angle (the whole ring leans with the device);
+        // the pointer aims each cube individually at the cursor.
+        let gyro = null;
+
         function apply() {
             raf = null;
             const halfW = window.innerWidth * 0.5, halfH = window.innerHeight * 0.5;
             cubes.forEach(cube => {
-                const r = cube.parentElement.getBoundingClientRect();
-                const dx = Math.max(-1, Math.min(1, (mx - (r.left + r.width / 2)) / halfW));
-                const dy = Math.max(-1, Math.min(1, (my - (r.top + r.height / 2)) / halfH));
-                const ry = tracking ? dx * MAX : 0;
-                const rx = tracking ? -dy * MAX : 0;
+                let ry, rx;
+                if (gyro) {
+                    ry = gyro.ry;
+                    rx = gyro.rx;
+                } else {
+                    const r = cube.parentElement.getBoundingClientRect();
+                    const dx = Math.max(-1, Math.min(1, (mx - (r.left + r.width / 2)) / halfW));
+                    const dy = Math.max(-1, Math.min(1, (my - (r.top + r.height / 2)) / halfH));
+                    ry = tracking ? dx * MAX : 0;
+                    rx = tracking ? -dy * MAX : 0;
+                }
                 cube.style.transform = `translateZ(${HALF}) rotateY(${ry.toFixed(1)}deg) rotateX(${rx.toFixed(1)}deg)`;
             });
         }
+        function schedule() { if (!raf) raf = requestAnimationFrame(apply); }
+
+        if (window.matchMedia('(hover: none)').matches) {
+            // No pointer on touch devices — lean the ring with the gyroscope
+            // instead, same smoothing/holding-angle model as the tesseract.
+            let sg = 0, sb = 0;
+            function onOrient(e) {
+                if (e.gamma === null || e.beta === null) return;
+                const g = Math.max(-45, Math.min(45, e.gamma)) / 45;
+                const b = Math.max(-45, Math.min(45, e.beta - 45)) / 45;
+                sg += (g - sg) * 0.12;
+                sb += (b - sb) * 0.12;
+                gyro = { ry: sg * MAX, rx: -sb * MAX };
+                schedule();
+            }
+            const listen = () => window.addEventListener('deviceorientation', onOrient, { passive: true });
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS requires a gesture before it will hand over orientation.
+                document.addEventListener('touchend', function grant() {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(s => { if (s === 'granted') listen(); })
+                        .catch(() => {});
+                }, { once: true });
+            } else {
+                listen();
+            }
+            return;
+        }
+
         window.addEventListener('mousemove', e => {
             tracking = true; mx = e.clientX; my = e.clientY;
-            if (!raf) raf = requestAnimationFrame(apply);
+            schedule();
         }, { passive: true });
         document.addEventListener('mouseleave', () => {
             tracking = false;
-            if (!raf) raf = requestAnimationFrame(apply);
+            schedule();
         });
     }
 
