@@ -86,6 +86,72 @@ function gtemplate_customizer_contact_info($wp_customize) {
     ]);
     $wp_customize->add_control($prefix . '_contact_hours', [
         'label' => __('Business Hours', 'gtemplate'),
+        'description' => __('Shown as "When I answer" on the contact face.', 'gtemplate'),
+        'section' => 'gtemplate_contact_info',
+        'type' => 'text',
+    ]);
+
+    // GitHub
+    $wp_customize->add_setting($prefix . '_contact_github', [
+        'default' => '',
+        'sanitize_callback' => 'esc_url_raw',
+        'transport' => 'refresh',
+    ]);
+    $wp_customize->add_control($prefix . '_contact_github', [
+        'label' => __('GitHub URL', 'gtemplate'),
+        'description' => __('Full URL. Leave empty to hide the row.', 'gtemplate'),
+        'section' => 'gtemplate_contact_info',
+        'type' => 'url',
+    ]);
+
+    // LinkedIn
+    $wp_customize->add_setting($prefix . '_contact_linkedin', [
+        'default' => '',
+        'sanitize_callback' => 'esc_url_raw',
+        'transport' => 'refresh',
+    ]);
+    $wp_customize->add_control($prefix . '_contact_linkedin', [
+        'label' => __('LinkedIn URL', 'gtemplate'),
+        'description' => __('Full URL. Leave empty to hide the row.', 'gtemplate'),
+        'section' => 'gtemplate_contact_info',
+        'type' => 'url',
+    ]);
+
+    // Intro heading
+    $wp_customize->add_setting($prefix . '_contact_heading', [
+        'default' => '',
+        'sanitize_callback' => 'sanitize_text_field',
+        'transport' => 'refresh',
+    ]);
+    $wp_customize->add_control($prefix . '_contact_heading', [
+        'label' => __('Intro Heading', 'gtemplate'),
+        'description' => __('Headline above the form. Empty hides the whole intro block.', 'gtemplate'),
+        'section' => 'gtemplate_contact_info',
+        'type' => 'text',
+    ]);
+
+    // Intro promise
+    $wp_customize->add_setting($prefix . '_contact_promise', [
+        'default' => '',
+        'sanitize_callback' => 'sanitize_textarea_field',
+        'transport' => 'refresh',
+    ]);
+    $wp_customize->add_control($prefix . '_contact_promise', [
+        'label' => __('Intro Text', 'gtemplate'),
+        'description' => __('What happens after someone presses Send - reply time, who reads it.', 'gtemplate'),
+        'section' => 'gtemplate_contact_info',
+        'type' => 'textarea',
+    ]);
+
+    // Privacy note
+    $wp_customize->add_setting($prefix . '_contact_privacy', [
+        'default' => '',
+        'sanitize_callback' => 'sanitize_text_field',
+        'transport' => 'refresh',
+    ]);
+    $wp_customize->add_control($prefix . '_contact_privacy', [
+        'label' => __('Privacy Note', 'gtemplate'),
+        'description' => __('Small print under the form. Empty uses the built-in default.', 'gtemplate'),
         'section' => 'gtemplate_contact_info',
         'type' => 'text',
     ]);
