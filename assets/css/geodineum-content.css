@@ -159,13 +159,27 @@ body.audience-nontech .geo .nontech-only-inline { display: inline; }
 :root[data-theme="light"] .geo-theme-toggle .geo-tt-moon { display: block; }
 @media print { .geo-theme-toggle { display: none; } }
 
-/* Accent picker — a row of colour dots left of the theme toggle */
+/* Theme toggle + accent flyout, housed together bottom-right (front page only).
+   The colour dots stay hidden until the control is hovered/focused. */
+.geo-controls {
+    position: fixed; right: 18px; bottom: 18px; z-index: 99990;
+    display: flex; flex-direction: row-reverse; align-items: center; gap: 8px;
+}
+.geo-controls .geo-theme-toggle { position: static; right: auto; bottom: auto; }
+
+/* Accent picker — a row of colour dots that flies out of the toggle on hover */
 .geo-accent-picker {
-    position: fixed; right: 66px; bottom: 18px; z-index: 99990;
     display: flex; align-items: center; gap: 7px;
     padding: 7px 10px; border-radius: 999px;
     border: 1px solid var(--nto-line, var(--line)); background: var(--nto-surface, var(--bg-1));
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    opacity: 0; visibility: hidden; transform: translateX(10px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+.geo-controls:hover .geo-accent-picker,
+.geo-controls:focus-within .geo-accent-picker {
+    opacity: 1; visibility: visible; transform: none; pointer-events: auto;
 }
 .geo-accent-dot {
     width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer;

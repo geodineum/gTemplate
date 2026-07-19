@@ -350,6 +350,8 @@
     if (root.hasAttribute('data-geo-no-accent-picker')) return;
     // Only mount where a palette actually defines the accent tokens.
     if (!getComputedStyle(root).getPropertyValue('--a1').trim()) return;
+    // Main page only — the front page carries the 'home' body class.
+    if (!document.body.classList.contains('home')) return;
     var accents = [['ice', '#5aa6ea'], ['magenta', '#e06b9a'], ['sodium', '#e6a24f'], ['acid', '#78c98e'], ['synth', '#b578e0']];
     var wrap = document.querySelector('[data-geo-accent-picker]');
     if (!wrap) {
@@ -374,7 +376,17 @@
         });
         wrap.appendChild(d);
       });
-      (document.body || root).appendChild(wrap);
+      // House the theme toggle + accent flyout in one control, so hovering the
+      // toggle reveals the colours. One place for every visual setting.
+      var controls = document.querySelector('.geo-controls');
+      if (!controls) {
+        controls = document.createElement('div');
+        controls.className = 'geo-controls';
+        (document.body || root).appendChild(controls);
+        var toggle = document.querySelector('.geo-theme-toggle');
+        if (toggle) controls.appendChild(toggle);
+      }
+      controls.appendChild(wrap);
     }
     function sync() {
       var cur = root.getAttribute('data-accent') || 'ice';
