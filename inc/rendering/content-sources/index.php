@@ -39,7 +39,24 @@ require_once $content_sources_dir . '/demo.php';
 function gtemplate_get_face_content($face_id) {
     // Balanced tags are load-bearing: one unclosed div in any face's content
     // swallows every sibling face rendered after it (inactive faces are hidden).
-    return force_balance_tags(gtemplate_resolve_face_content($face_id));
+    // Script bodies must be shielded first: markup inside a <script> is data,
+    // not tags. The balancer counts opening tags in an embedded JSON payload
+    // (whose closers are slash-escaped, so it never sees them) and appends a
+    // pile of closers into the script, breaking JSON.parse and bare `<`
+    // comparisons alike.
+    $html = gtemplate_resolve_face_content($face_id);
+
+    $scripts = [];
+    $html = preg_replace_callback('#<script\b[^>]*>.*?</script>#is', function ($m) use (&$scripts) {
+        $scripts[] = $m[0];
+        return '<!--gtemplate-script-' . (count($scripts) - 1) . '-->';
+    }, $html);
+
+    $html = force_balance_tags($html);
+
+    return preg_replace_callback('#<!--gtemplate-script-(\d+)-->#', function ($m) use ($scripts) {
+        return $scripts[(int) $m[1]] ?? '';
+    }, $html);
 }
 
 function gtemplate_resolve_face_content($face_id) {
