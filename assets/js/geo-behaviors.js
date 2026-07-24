@@ -337,7 +337,13 @@
       window.dispatchEvent(new CustomEvent('geo:themechange', { detail: { theme: theme } }));
     }
 
-    btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+    btn.addEventListener('click', function () {
+      apply(current() === 'light' ? 'dark' : 'light', true);
+      // An explicit theme choice is the gesture that earns the accent flyout
+      // (touch has no hover; see .accents-open in geodineum-content.css).
+      var controls = btn.closest('.geo-controls');
+      if (controls) controls.classList.add('accents-open');
+    });
     apply(current(), false); // sync button + meta to the pre-painted state
   }
 

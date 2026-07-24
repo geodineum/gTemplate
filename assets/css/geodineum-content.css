@@ -177,8 +177,17 @@ body.audience-nontech .geo .nontech-only-inline { display: inline; }
     pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
 }
-.geo-controls:hover .geo-accent-picker,
-.geo-controls:focus-within .geo-accent-picker {
+/* Reveal on hover only where hover is a real gesture — on touch, a tap
+   focused the control and :focus-within pinned the flyout open over the
+   menu. Everywhere, an explicit theme-toggle click opens it (.accents-open,
+   set in geo-behaviors.js). */
+@media (hover: hover) {
+    .geo-controls:hover .geo-accent-picker,
+    .geo-controls:focus-within .geo-accent-picker {
+        opacity: 1; visibility: visible; transform: none; pointer-events: auto;
+    }
+}
+.geo-controls.accents-open .geo-accent-picker {
     opacity: 1; visibility: visible; transform: none; pointer-events: auto;
 }
 .geo-accent-dot {
