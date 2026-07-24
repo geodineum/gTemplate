@@ -125,6 +125,22 @@ function gtemplate_get_request_slug(): string {
 }
 
 /**
+ * The ONE label resolver for a face: theme mod, else the (child-filtered)
+ * default label. Every face-label consumer must use this — a raw
+ * get_theme_mod('' ) default made slug routing blind to default-labelled
+ * faces (e.g. /contact/ on a face whose 'Contact' came from the child
+ * theme's gtemplate_default_labels filter, never a saved mod).
+ *
+ * @param int $i Face index
+ * @return string Label, '' when neither a mod nor a default exists
+ */
+function gtemplate_face_label(int $i): string {
+    $defaults = apply_filters('gtemplate_default_labels', ['Home', 'About', 'Services', 'Portfolio', 'Blog', 'Contact']);
+    $face_prefix = gtemplate_get_face_prefix();
+    return (string) get_theme_mod("{$face_prefix}_{$i}_label", $defaults[$i] ?? '');
+}
+
+/**
  * Find a cell whose label slug matches the given slug.
  *
  * @param string $slug URL-style slug (e.g. 'contact')
@@ -132,11 +148,10 @@ function gtemplate_get_request_slug(): string {
  */
 function gtemplate_find_face_by_slug(string $slug): ?int {
     if ($slug === '') return null;
-    $face_prefix = gtemplate_get_face_prefix();
     $face_count = gtemplate_get_face_count();
 
     for ($i = 0; $i < $face_count; $i++) {
-        $label = (string) get_theme_mod("{$face_prefix}_{$i}_label", '');
+        $label = gtemplate_face_label($i);
         if ($label === '') continue;
         if (sanitize_title($label) === $slug) {
             return $i;
@@ -194,10 +209,9 @@ function gtemplate_get_face_mapping(): array {
     $mapping = [];
     $face_prefix = gtemplate_get_face_prefix();
     $face_count = gtemplate_get_face_count();
-    $defaults = apply_filters('gtemplate_default_labels', ['Home', 'About', 'Services', 'Portfolio', 'Blog', 'Contact']);
 
     for ($i = 0; $i < $face_count; $i++) {
-        $label = get_theme_mod("{$face_prefix}_{$i}_label", $defaults[$i] ?? 'Face ' . ($i + 1));
+        $label = gtemplate_face_label($i) ?: 'Face ' . ($i + 1);
         $source = get_theme_mod("{$face_prefix}_{$i}_source", 'demo');
         $content_id = (int) get_theme_mod("{$face_prefix}_{$i}_content_id", 0);
 
