@@ -77,30 +77,52 @@
 
         const HALF = 'calc(var(--nav-cube-size) / -2)';
         const MAX = 24; // degrees of swing at the extremes
-        cubes.forEach(c => { c.style.transition = 'transform 0.14s ease-out'; });
 
         let raf = null, mx = 0, my = 0, tracking = false;
         // Gyro drives one shared angle (the whole ring leans with the device);
         // the pointer aims each cube individually at the cursor.
         let gyro = null;
 
+        // Smoothing lives HERE (lerp per frame, transition:none while the loop
+        // runs), never in a CSS transition — easing a per-frame retargeted
+        // transform leaves every cube perpetually dragging behind the cursor.
+        // When the ring settles the inline transition is cleared so the
+        // stylesheet's 0.4s governs face-switch rotations again.
+        const state = cubes.map(() => ({ ry: 0, rx: 0 }));
+        let engaged = false;
+
         function apply() {
-            raf = null;
             const halfW = window.innerWidth * 0.5, halfH = window.innerHeight * 0.5;
-            cubes.forEach(cube => {
-                let ry, rx;
+            let settled = true;
+            cubes.forEach((cube, i) => {
+                let ty, tx;
                 if (gyro) {
-                    ry = gyro.ry;
-                    rx = gyro.rx;
+                    ty = gyro.ry;
+                    tx = gyro.rx;
                 } else {
                     const r = cube.parentElement.getBoundingClientRect();
                     const dx = Math.max(-1, Math.min(1, (mx - (r.left + r.width / 2)) / halfW));
                     const dy = Math.max(-1, Math.min(1, (my - (r.top + r.height / 2)) / halfH));
-                    ry = tracking ? dx * MAX : 0;
-                    rx = tracking ? -dy * MAX : 0;
+                    ty = tracking ? dx * MAX : 0;
+                    tx = tracking ? -dy * MAX : 0;
                 }
-                cube.style.transform = `translateZ(${HALF}) rotateY(${ry.toFixed(1)}deg) rotateX(${rx.toFixed(1)}deg)`;
+                const s = state[i];
+                s.ry += (ty - s.ry) * 0.18;
+                s.rx += (tx - s.rx) * 0.18;
+                if (Math.abs(ty - s.ry) > 0.05 || Math.abs(tx - s.rx) > 0.05) settled = false;
+                if (!engaged) cube.style.transition = 'none';
+                cube.style.transform = `translateZ(${HALF}) rotateY(${s.ry.toFixed(2)}deg) rotateX(${s.rx.toFixed(2)}deg)`;
             });
+            engaged = true;
+            // Exit purely on settled — mousemove/gyro events re-arm via
+            // schedule(), so no permanent RAF loop idles on mobile.
+            if (!settled) {
+                raf = requestAnimationFrame(apply);
+            } else {
+                raf = null;
+                engaged = false;
+                cubes.forEach(c => { c.style.transition = ''; });
+            }
         }
         function schedule() { if (!raf) raf = requestAnimationFrame(apply); }
 
