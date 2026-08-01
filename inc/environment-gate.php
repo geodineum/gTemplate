@@ -247,14 +247,17 @@ class EnvironmentGate
      */
     public function getEnvironmentColor(): string
     {
+        // The brand accent spectrum (gSchedule design language / geodineum.com),
+        // not bootstrap defaults — the gate is often the FIRST thing a client
+        // sees of the stack.
         $colors = [
-            'testing' => '#e74c3c',     // Red
-            'staging' => '#f39c12',     // Orange
-            'acceptance' => '#3498db',  // Blue
-            'production' => '#27ae60'   // Green
+            'testing' => '#d9614a',     // coral
+            'staging' => '#d8a83f',     // amber
+            'acceptance' => '#4f83c4',  // blue
+            'production' => '#3f9d8a'   // teal
         ];
 
-        return $colors[$this->environment] ?? '#95a5a6';
+        return $colors[$this->environment] ?? '#c5a059';
     }
 
     /**
@@ -333,9 +336,13 @@ function render_gate_screen(): void
     $env_color = $gate->getEnvironmentColor();
     $has_viewkey = $gate->hasViewkey();
 
-    // Get site config for branding
+    // Get site config for branding. A site's own logo wins; the shipped
+    // Geodineum mark is the default so the gate is never an emoji.
     $config = load_registration_config() ?? [];
     $logo_url = $config['branding']['logo_url'] ?? '';
+    if ($logo_url === '') {
+        $logo_url = get_template_directory_uri() . '/assets/img/geodineum-logo.png';
+    }
 
     ?>
 <!DOCTYPE html>
@@ -344,201 +351,175 @@ function render_gate_screen(): void
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title><?php echo esc_html($site_name); ?> - <?php echo esc_html($env_label); ?></title>
+    <meta name="theme-color" content="#060504">
+    <title><?php echo esc_html($site_name); ?> — <?php echo esc_html($env_label); ?></title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Geodineum gate — design language shared with gSchedule (declined
+           3D plane, #060504 ground, brass highlights, accent spectrum). */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --ground: #060504;
+            --panel: #0e0b07;
+            --ink: #e9ddc6;
+            --ink-dim: rgba(233, 221, 198, 0.55);
+            --hi: #e3c887;
+            --brass: #c5a059;
+            --env: <?php echo esc_attr($env_color); ?>;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--ground);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            color: var(--ink);
+            overflow: hidden;
         }
+        /* Declined lattice ground — the gSchedule plane, kept subtle. */
+        .lattice {
+            position: fixed; inset: -60% -30%;
+            transform: perspective(1100px) rotateX(54deg);
+            background-image:
+                linear-gradient(rgba(197, 160, 89, 0.13) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(197, 160, 89, 0.13) 1px, transparent 1px);
+            background-size: 56px 56px;
+            animation: drift 36s linear infinite;
+            pointer-events: none;
+        }
+        .lattice::after {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(ellipse 60% 55% at 50% 42%, transparent 30%, var(--ground) 78%);
+        }
+        @keyframes drift { to { background-position: 0 56px, 0 0; } }
+        @media (prefers-reduced-motion: reduce) { .lattice { animation: none; } }
 
-        .gate-container {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 420px;
-            width: 90%;
+        .gate-card {
+            position: relative;
+            width: min(420px, 92vw);
+            background: linear-gradient(178deg, rgba(233, 221, 198, 0.045), rgba(233, 221, 198, 0.012) 55%), var(--panel);
+            border: 1px solid rgba(227, 200, 135, 0.28);
+            border-radius: 14px;
+            padding: 42px 36px 30px;
             text-align: center;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            transform: perspective(1100px) rotateX(4.5deg);
+            transform-origin: 50% 100%;
+            transition: transform 0.45s cubic-bezier(.2, .8, .25, 1), box-shadow 0.45s ease;
+            box-shadow:
+                0 30px 60px -18px rgba(0, 0, 0, 0.85),
+                0 0 44px -18px rgba(227, 200, 135, 0.35);
         }
-
-        .gate-logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
+        .gate-card:hover, .gate-card:focus-within {
+            transform: perspective(1100px) rotateX(0deg);
+            box-shadow:
+                0 22px 48px -16px rgba(0, 0, 0, 0.8),
+                0 0 56px -14px rgba(227, 200, 135, 0.45);
         }
-
+        /* The lively bit: the accent spectrum, one thin strip. */
+        .gate-spectrum {
+            position: absolute; top: 0; left: 14px; right: 14px; height: 3px;
+            border-radius: 0 0 3px 3px;
+            background: linear-gradient(90deg,
+                #d9614a, #d8a83f, #a8b23c, #3f9d8a, #4f83c4, #9a6fc9);
+            opacity: 0.9;
+        }
+        .gate-logo { margin: 0 auto 18px; width: 84px; height: 84px; }
         .gate-logo img {
-            max-width: 60px;
-            max-height: 60px;
-            border-radius: 10px;
+            width: 100%; height: 100%; object-fit: contain;
+            filter: drop-shadow(0 6px 18px rgba(227, 200, 135, 0.25));
         }
-
         .gate-badge {
             display: inline-block;
-            background: <?php echo esc_attr($env_color); ?>;
-            color: #fff;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
+            color: var(--env);
+            border: 1px solid var(--env);
+            padding: 4px 14px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
-
         .gate-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 10px;
+            font-size: 24px; font-weight: 650; letter-spacing: 0.01em;
+            color: var(--hi); margin-bottom: 10px;
         }
-
-        .gate-subtitle {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-
-        .gate-form {
-            margin-top: 20px;
-        }
-
-        .gate-input-group {
-            position: relative;
-            margin-bottom: 15px;
-        }
-
-        .gate-input {
-            width: 100%;
-            padding: 14px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.3s ease, background-color 0.3s ease;
-        }
-
-        .gate-input::placeholder {
-            color: rgba(255, 255, 255, 0.4);
-        }
-
-        .gate-input:focus {
-            border-color: <?php echo esc_attr($env_color); ?>;
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .gate-button {
-            width: 100%;
-            padding: 14px 20px;
-            background: <?php echo esc_attr($env_color); ?>;
-            border: none;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .gate-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-        }
-
+        .gate-subtitle { font-size: 14px; line-height: 1.65; color: var(--ink-dim); margin-bottom: 24px; }
         .gate-error {
-            background: rgba(231, 76, 60, 0.2);
-            border: 1px solid rgba(231, 76, 60, 0.4);
-            color: #e74c3c;
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            font-size: 14px;
+            background: rgba(217, 97, 74, 0.12);
+            border: 1px solid rgba(217, 97, 74, 0.45);
+            color: #e8907e;
+            padding: 11px; border-radius: 9px; margin-bottom: 14px; font-size: 13px;
         }
-
+        .gate-input {
+            width: 100%; padding: 13px 16px;
+            background: rgba(6, 5, 4, 0.6);
+            border: 1px solid rgba(197, 160, 89, 0.35);
+            border-radius: 9px;
+            color: var(--ink); font-size: 15px; text-align: center;
+            letter-spacing: 0.08em;
+            outline: none;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .gate-input::placeholder { color: rgba(233, 221, 198, 0.3); letter-spacing: normal; }
+        .gate-input:focus {
+            border-color: var(--hi);
+            box-shadow: 0 0 0 3px rgba(227, 200, 135, 0.14);
+        }
+        .gate-button {
+            width: 100%; margin-top: 12px; padding: 13px 20px;
+            background: linear-gradient(180deg, var(--hi), var(--brass));
+            border: none; border-radius: 9px;
+            color: #14100a; font-size: 15px; font-weight: 700; letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+        }
+        .gate-button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+            box-shadow: 0 10px 26px -10px rgba(227, 200, 135, 0.55);
+        }
         .gate-divider {
-            display: flex;
-            align-items: center;
-            margin: 25px 0;
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 12px;
+            display: flex; align-items: center; margin: 22px 0 14px;
+            color: rgba(233, 221, 198, 0.28); font-size: 11px;
+            letter-spacing: 0.12em; text-transform: uppercase;
         }
-
-        .gate-divider::before,
-        .gate-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.1);
+        .gate-divider::before, .gate-divider::after {
+            content: ''; flex: 1; height: 1px; background: rgba(197, 160, 89, 0.22);
         }
-
-        .gate-divider span {
-            padding: 0 15px;
-        }
-
+        .gate-divider span { padding: 0 12px; }
         .gate-wp-login {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 13px;
-            text-decoration: none;
-            transition: color 0.3s ease;
+            color: var(--ink-dim); font-size: 13px; text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: color 0.25s ease, border-color 0.25s ease;
         }
-
-        .gate-wp-login:hover {
-            color: #fff;
-        }
-
+        .gate-wp-login:hover { color: var(--hi); border-color: rgba(227, 200, 135, 0.5); }
+        .gate-no-viewkey { color: var(--ink-dim); font-size: 14px; margin-top: 8px; }
         .gate-footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.3);
+            margin-top: 26px; padding-top: 16px;
+            border-top: 1px solid rgba(197, 160, 89, 0.18);
+            font-size: 11px; letter-spacing: 0.08em;
+            color: rgba(233, 221, 198, 0.32);
         }
-
-        .gate-no-viewkey {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-            margin-top: 20px;
-        }
+        .gate-footer a { color: inherit; text-decoration: none; }
+        .gate-footer a:hover { color: var(--hi); }
     </style>
 </head>
 <body>
-    <div class="gate-container">
+    <div class="lattice" aria-hidden="true"></div>
+    <div class="gate-card">
+        <div class="gate-spectrum" aria-hidden="true"></div>
         <div class="gate-logo">
-            <?php if ($logo_url): ?>
-                <img src="<?php echo esc_url($logo_url); ?>" alt="<?php echo esc_attr($site_name); ?>">
-            <?php else: ?>
-                &#x1f6a7;
-            <?php endif; ?>
+            <img src="<?php echo esc_url($logo_url); ?>" alt="<?php echo esc_attr($site_name); ?>">
         </div>
 
         <div class="gate-badge"><?php echo esc_html($env_label); ?></div>
 
         <h1 class="gate-title"><?php echo esc_html($site_name); ?></h1>
         <p class="gate-subtitle">
-            This site is currently under development.<br>
+            This site is under development.<br>
             <?php if ($has_viewkey): ?>
-                Enter your viewkey to preview the site.
+                Enter your viewkey to preview it.
             <?php else: ?>
                 Please log in to continue.
             <?php endif; ?>
@@ -555,16 +536,14 @@ function render_gate_screen(): void
                     </div>
                 <?php endif; ?>
 
-                <div class="gate-input-group">
-                    <input
-                        type="password"
-                        name="gtemplate_viewkey_input"
-                        class="gate-input"
-                        placeholder="Enter viewkey"
-                        autocomplete="off"
-                        autofocus
-                    >
-                </div>
+                <input
+                    type="password"
+                    name="gtemplate_viewkey_input"
+                    class="gate-input"
+                    placeholder="viewkey"
+                    autocomplete="off"
+                    autofocus
+                >
 
                 <button type="submit" class="gate-button">
                     View Site
@@ -584,7 +563,7 @@ function render_gate_screen(): void
         </a>
 
         <div class="gate-footer">
-            Powered by gTemplate &bull; Geodineum Stack
+            Powered by <a href="https://geodineum.com" rel="noopener">Geodineum</a>
         </div>
     </div>
 </body>
