@@ -3,7 +3,13 @@
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="<?php bloginfo('description'); ?>">
+    <?php
+    // Per-page description: the page excerpt when set, else the site tagline.
+    $gtemplate_desc = is_singular() ? trim(wp_strip_all_tags((string) get_post_field('post_excerpt', get_queried_object_id()))) : '';
+    if ($gtemplate_desc === '') { $gtemplate_desc = get_bloginfo('description'); }
+    ?>
+    <meta name="description" content="<?php echo esc_attr($gtemplate_desc); ?>">
+    <meta property="og:description" content="<?php echo esc_attr($gtemplate_desc); ?>">
 
     <?php wp_head(); ?>
 </head>
