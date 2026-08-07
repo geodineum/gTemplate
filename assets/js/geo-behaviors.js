@@ -333,7 +333,8 @@
       if (!banner) return;
       function lift() {
         var el = document.querySelector('.geo-controls') || btn;
-        var visible = banner.style.display !== 'none' && banner.offsetParent !== null;
+        // offsetParent is null for position:fixed even when rendered — height is the honest signal.
+        var visible = banner.style.display !== 'none' && banner.offsetHeight > 0;
         el.style.bottom = visible ? (banner.offsetHeight + 14) + 'px' : '';
       }
       lift();
