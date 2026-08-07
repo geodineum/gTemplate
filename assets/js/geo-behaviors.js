@@ -324,6 +324,25 @@
       (document.body || root).appendChild(btn);
     }
 
+    // The consent bar (z 99999) sits above this control (z 99990) and
+    // swallows its taps until dismissed — most visibly on phones, where the
+    // wrapped banner is tall. Track the banner's real visibility and lift
+    // the control (or its .geo-controls wrapper) clear of it.
+    (function () {
+      var banner = document.getElementById('gtemplate-cookie-consent');
+      if (!banner) return;
+      function lift() {
+        var el = document.querySelector('.geo-controls') || btn;
+        var visible = banner.style.display !== 'none' && banner.offsetParent !== null;
+        el.style.bottom = visible ? (banner.offsetHeight + 14) + 'px' : '';
+      }
+      lift();
+      try {
+        new MutationObserver(lift).observe(banner, { attributes: true, attributeFilter: ['style'] });
+      } catch (e) {}
+      window.addEventListener('resize', lift);
+    })();
+
     function apply(theme, persist) {
       root.setAttribute('data-theme', theme);
       if (persist) { try { localStorage.setItem('geo-theme', theme); } catch (e) {} }
