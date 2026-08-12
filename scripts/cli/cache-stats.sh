@@ -6,6 +6,13 @@
 
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    echo "Usage: geodineum cache stats [<site_id>]"
+    echo ""
+    echo "Show gTemplate page-cache key counts — per-site totals, or one site's."
+    exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GEODINEUM_ROOT="${GEODINEUM_ROOT:-/opt/geodineum}"
 

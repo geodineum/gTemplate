@@ -4,6 +4,13 @@ set -euo pipefail
 # Print the gTemplate theme integration contract (CONTRACT.md). Sourced by
 # `geodineum template contract`.
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    echo "Usage: geodineum template contract"
+    echo ""
+    echo "Print the gTemplate theme integration contract (CONTRACT.md)."
+    exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 CONTRACT="${REPO_ROOT}/CONTRACT.md"
