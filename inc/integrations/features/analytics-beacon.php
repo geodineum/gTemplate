@@ -33,7 +33,87 @@ add_action('rest_api_init', function () {
             'ref' => ['type' => 'string', 'default' => ''],
         ],
     ]);
+
+    // Same contract as /analytics/hit: unauthenticated by necessity, bounded
+    // server-side, aggregate counters only. A click is an intent signal, so it
+    // is recorded apart from page hits rather than as a pseudo-page.
+    register_rest_route(gtemplate_get_rest_namespace(), '/analytics/click', [
+        'methods' => 'POST',
+        'callback' => 'gtemplate_rest_analytics_click',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'label' => ['type' => 'string', 'default' => ''],
+            'path' => ['type' => 'string', 'default' => '/'],
+        ],
+    ]);
 });
+
+/**
+ * Record a single tracked CTA click.
+ *
+ * The label comes from a data-track attribute in the markup, so it is authored
+ * copy rather than user input, but it is still bounded and character-restricted
+ * here: the endpoint is public and the value becomes a ValKey hash field.
+ *
+ * @param \WP_REST_Request $request
+ * @return \WP_REST_Response
+ */
+function gtemplate_rest_analytics_click($request)
+{
+    $params = $request->get_json_params();
+    if (!is_array($params)) {
+        $params = $request->get_params();
+    }
+
+    // Labels are a closed vocabulary from the templates; anything else is noise.
+    $label = isset($params['label']) ? (string) $params['label'] : '';
+    $label = strtolower(preg_replace('/[^a-zA-Z0-9._:-]/', '', $label));
+    if ($label === '' || strlen($label) > 64) {
+        return new WP_REST_Response(['ok' => false], 202);
+    }
+
+    $path = isset($params['path']) ? (string) $params['path'] : '/';
+    $path = strtok($path, '#');
+    $path = preg_replace('/[\x00-\x1f]/', '', (string) $path);
+    $path = '/' . ltrim($path, '/');
+    if (strlen($path) > 300) {
+        $path = substr($path, 0, 300);
+    }
+
+    $storage = $GLOBALS['gtemplate_gnode_storage'] ?? null;
+    if (!$storage) {
+        return new WP_REST_Response(['ok' => false], 202);
+    }
+
+    $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+    $ymd = gmdate('Ymd');
+
+    // Same derivation as the hit beacon, so a clicker is the same identity as
+    // the visitor for that day and clickers/visits is a real rate.
+    $vhash = substr(
+        hash('sha256', gtemplate_analytics_client_ip() . '|' . $ua . '|' . $ymd . '|' . wp_salt('nonce')),
+        0,
+        24
+    );
+
+    try {
+        $storage->fcall('GNODE_ANALYTICS_CLICK', [], [
+            gtemplate_get_site_id(),
+            $vhash,
+            $label,
+            $path,
+            gtemplate_analytics_is_bot($ua) ? '1' : '0',
+            (string) time(),
+            $ymd,
+        ]);
+    } catch (\Throwable $e) {
+        if (function_exists('gtemplate_track_error')) {
+            gtemplate_track_error('gTemplate: analytics click failed: ' . $e->getMessage());
+        }
+    }
+
+    return new WP_REST_Response(['ok' => true], 202);
+}
 
 /**
  * Record a single visitor hit.

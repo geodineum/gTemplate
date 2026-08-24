@@ -68,6 +68,7 @@ function gtemplate_enqueue_parent_assets() {
         wp_enqueue_script('gtemplate-analytics-beacon', $theme_uri . '/assets/js/analytics-beacon.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
         wp_localize_script('gtemplate-analytics-beacon', 'gtemplateAnalytics', [
             'url' => rest_url(gtemplate_get_rest_namespace() . '/analytics/hit'),
+            'clickUrl' => rest_url(gtemplate_get_rest_namespace() . '/analytics/click'),
             'consentKey' => 'gtemplate_cookie_consent_' . gtemplate_get_site_id(),
         ]);
     }

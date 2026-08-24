@@ -1,9 +1,10 @@
 /**
  * Cookieless visitor analytics beacon.
  *
- * Fires one POST to the gTemplate analytics/hit endpoint per page view. No
- * cookies, no device storage — the server derives a daily-rotating hash. An
- * explicit analytics opt-out (cookie-consent banner) suppresses it.
+ * Fires one POST to the gTemplate analytics/hit endpoint per page view, and one
+ * to analytics/click whenever a [data-track] element is activated. No cookies,
+ * no device storage: the server derives a daily-rotating hash. An explicit
+ * analytics opt-out (cookie-consent banner) suppresses both.
  */
 (function () {
     'use strict';
@@ -44,6 +45,35 @@
                 body: payload
             });
         } catch (e) { /* give up silently */ }
+    }
+
+    // Delegated so it covers markup added after load, and capture-phase so a
+    // click still records when the handler navigates away immediately.
+    if (cfg.clickUrl) {
+        document.addEventListener('click', function (ev) {
+            var el = ev.target && ev.target.closest && ev.target.closest('[data-track]');
+            if (!el) { return; }
+            var label = (el.getAttribute('data-track') || '').slice(0, 64);
+            if (!label) { return; }
+            var body = JSON.stringify({
+                label: label,
+                path: location.pathname + location.search
+            });
+            try {
+                var b = new Blob([body], { type: 'application/json' });
+                if (navigator.sendBeacon && navigator.sendBeacon(cfg.clickUrl, b)) {
+                    return;
+                }
+            } catch (e) { /* fall through */ }
+            try {
+                fetch(cfg.clickUrl, {
+                    method: 'POST',
+                    keepalive: true,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                });
+            } catch (e) { /* give up silently */ }
+        }, true);
     }
 
     if (document.readyState === 'complete') {
