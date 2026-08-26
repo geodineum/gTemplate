@@ -5,6 +5,11 @@
  * to analytics/click whenever a [data-track] element is activated. No cookies,
  * no device storage: the server derives a daily-rotating hash. An explicit
  * analytics opt-out (cookie-consent banner) suppresses both.
+ *
+ * Nothing is sent while the page is prerendering. A speculation-rules prerender
+ * runs the whole document before anyone has seen it, so firing here would count
+ * arrivals that never happened; the hit is held until activation, and pages
+ * that are prerendered but never visited report nothing at all.
  */
 (function () {
     'use strict';
@@ -76,12 +81,23 @@
         }, true);
     }
 
-    if (document.readyState === 'complete') {
-        send();
-    } else {
+    function sendWhenLoaded() {
+        if (document.readyState === 'complete') {
+            send();
+            return;
+        }
         window.addEventListener('load', function once() {
             window.removeEventListener('load', once);
             send();
         });
+    }
+
+    // document.prerendering is true only inside an unshown prerender. Where the
+    // API is absent this is undefined and the page reports immediately, which
+    // is the pre-existing behaviour.
+    if (document.prerendering) {
+        document.addEventListener('prerenderingchange', sendWhenLoaded, { once: true });
+    } else {
+        sendWhenLoaded();
     }
 })();

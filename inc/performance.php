@@ -177,7 +177,45 @@ function gtemplate_page_uses_blocks() {
  *
  * @param string $version HTMX version
  */
+/**
+ * Does the current request render markup that htmx drives?
+ *
+ * Checked against the post content rather than a flag, so authoring a form in
+ * the editor is enough and nobody has to remember to opt the page in. Templates
+ * that emit hx-* directly can opt in with the filter.
+ *
+ * @return bool
+ */
+function gtemplate_page_uses_htmx(): bool
+{
+    $needed = false;
+
+    if (is_singular()) {
+        $content = (string) get_post_field('post_content', get_queried_object_id());
+        foreach (['[gform', '[gtemplate_chat', 'hx-get', 'hx-post'] as $marker) {
+            if (strpos($content, $marker) !== false) {
+                $needed = true;
+                break;
+            }
+        }
+    }
+
+    /**
+     * Filters whether htmx is loaded for this request.
+     *
+     * @param bool $needed Whether htmx is required.
+     */
+    return (bool) apply_filters('gtemplate_needs_htmx', $needed);
+}
+
 function gtemplate_enqueue_htmx() {
+    // Only where something actually uses it. The shortcodes that emit hx-*
+    // attributes ([gform], the chat block) are the only consumers, so every
+    // other page was paying ~14KB and a request for a library it never called.
+    if (!gtemplate_page_uses_htmx()) {
+        return;
+    }
+
     $theme_uri = get_template_directory_uri();
     $theme_dir = get_template_directory();
 
