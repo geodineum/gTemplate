@@ -87,7 +87,7 @@ CONSUMES:
 - CSRF = WP nonce (action-tied), NOT distributed state → multi-server validation gap · `forms.php:428`
 - rate-limit (contact) = SecurityManager injection only (`gcore-init.php:111-112`), no public per-endpoint tunables; [gform] 20/h hardcoded
 - registration lookup trusts brace-literal key exists/matches, no validation · `registration.php:85`
-- APCu/ValKey constellation generation counter not cross-validated → stale APCu until TTL
+- APCu hit validated against ValKey constellation generation (bumped by env set / config set / web-tier deploy); ValKey unreachable → trusts APCu until 300 s TTL
 - comms stream retention = daemon cleanup policy only (no ValKey TTL / theme-side control); forms streams = producer XTRIM ~5000 only
 - CommsManager init exposes `use_gnode` bool but NOT daemon `--allow-nonprod-send` flag → blocks non-prod real sends even when daemon permits · `comms.php:39-44`
 - gNodeClient dual-assigned as keybased-client + storage provider; single interface assumed, no runtime type validation · `gcore-init.php:88-90`

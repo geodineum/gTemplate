@@ -232,4 +232,4 @@ Known observations and cross-component status involving gTemplate.
 - Free-tier mode (`GTEMPLATE_FREE_TIER` constant) silently disables all gNode comms with no operator warning on submit.
 - gNode-Client interface is assumed but not validated at runtime; a future gCore interface change causes runtime failure in `forms.php`.
 - Stream retention for `{site_id}:gnode:comms:{environment}` relies on daemon cleanup, not ValKey TTL or gTemplate-side controls.
-- The gNodeConfigLoader APCu cache and the ValKey constellation generation counter are not cross-validated; a stale APCu config entry can persist until its TTL expires even after ValKey changes.
+- gNodeConfigLoader validates every APCu hit against the ValKey constellation generation counter (`isGenerationFresh`), which `geodineum env set`, `geodineum config set` and every web-tier deploy bump; only when ValKey is unreachable does it trust APCu until the 300 s TTL.
