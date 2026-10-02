@@ -164,7 +164,8 @@ function gtemplate_render_single_post_html($post) {
 
     // Post footer with navigation
     $html .= '<footer class="post-footer">';
-    $html .= '<button class="post-back-btn" data-action="close-post">&larr; Back to News</button>';
+    $back = function_exists('gtemplate_find_posts_face') ? gtemplate_face_label(gtemplate_find_posts_face()) : '';
+    $html .= '<button class="post-back-btn" data-action="close-post">&larr; Back to ' . esc_html($back !== '' ? $back : 'News') . '</button>';
     $html .= '</footer>';
 
     $html .= '</article>';
