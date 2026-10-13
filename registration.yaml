@@ -15,25 +15,23 @@ version: "1.0.0"
 
 service:
   type: wordpress-site
-  tier: service
+  shape: site
   update_mode: upsert
 
-# 19 semantic dimensions (Layer 1-8)
+# The one topology's service body, declared by name; the daemon codes the words.
 capabilities:
-  protocol: http_rest
-  native_format: json
-  contract_stability: stable
-  clearance_required: public
+  protocol: [http_rest]
   auth_method: session_cookie
-  data_sensitivity: internal
   service_scope: client_facing
-  domain_primary: content
-  specialization: generalist
+  domain: [content, presentation]
+  contract_stability: stable
+  contract_version: v1
   throughput_tier: professional
   latency_class: responsive
   reliability_tier: high
-  pipeline_stage: deliver
   execution_priority: normal
+  implementation_language: php
+  native_format: json
 
 metadata:
   type: wordpress-site

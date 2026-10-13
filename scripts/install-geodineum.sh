@@ -844,33 +844,23 @@ site_id: ${site_id}
 
 service:
   type: wordpress-site
-  tier: service
+  shape: site
   update_mode: upsert
 
-# gNode Topology Capabilities (16 dimensions)
+# The one topology's service body, declared by name; the daemon codes the words.
 capabilities:
-  # Interface Identity
-  protocol: http_rest
-  native_format: json
-  api_version: v1
-  contract_stability: stable
-  # Access Control
-  clearance_required: public
+  protocol: [http_rest]
   auth_method: session_cookie
-  data_sensitivity: internal
-  # Service Scope
   service_scope: client_facing
-  # Functional Domain
-  domain_primary: content
-  domain_secondary: template
-  specialization: generalist
-  # Performance Profile
+  domain: [content, presentation]
+  contract_stability: stable
+  contract_version: v1
   throughput_tier: professional
   latency_class: responsive
   reliability_tier: high
-  # Workflow Context
-  pipeline_stage: deliver
   execution_priority: normal
+  implementation_language: php
+  native_format: json
 
 metadata:
   type: wordpress-site

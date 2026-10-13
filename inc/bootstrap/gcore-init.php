@@ -150,11 +150,18 @@ function gtemplate_initialize_topology_manager($gNodeClient) {
         $topology = $gCore->getService('TopologyManager');
         $site_id = gtemplate_get_site_id();
 
+        // The theme's registration config is the declaration: shape, the
+        // capability words and the metadata the manager registers by name.
+        $reg = gtemplate_get_registration_config();
         $topology->initialize([
             'site_id' => $site_id,
             'node_id' => 'web-' . gethostname(),
             'use_gnode' => true,
             'gnode_client' => $gNodeClient,
+            'service' => $reg['service'] ?? ['type' => 'wordpress-site', 'shape' => 'site'],
+            'capabilities' => $reg['capabilities'] ?? [],
+            'metadata' => $reg['metadata'] ?? [],
+            'environment' => gtemplate_detect_environment(),
             'auto_register_service' => false,
             'cache_enabled' => true,
             'default_dimensions' => 9,

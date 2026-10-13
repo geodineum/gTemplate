@@ -261,12 +261,16 @@ class gNodeConfigLoader
             'site_id' => $siteId,
             'service' => [
                 'type' => 'wordpress-site',
-                'tier' => 'service',
+                'shape' => 'site',
                 'update_mode' => 'upsert',
             ],
             'capabilities' => [
-                'wordpress-site' => 1.0,
-                'gnode-integrated' => 1.0,
+                'protocol' => ['http_rest'],
+                'auth_method' => 'session_cookie',
+                'service_scope' => 'client_facing',
+                'domain' => ['content', 'presentation'],
+                'implementation_language' => 'php',
+                'native_format' => 'json',
             ],
             'metadata' => [
                 'type' => 'wordpress-site',

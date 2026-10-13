@@ -146,7 +146,7 @@ function load_config_from_yaml(): ?array
         }
     }
 
-    // Fallback: Return minimal auto-detected config with 19 semantic dimensions
+    // Fallback: Return minimal auto-detected config declared by name on the one topology
     $auto_site_id = get_site_id_from_domain();
     gtemplate_track_error("gTemplate Registration: No config file found, using auto-detected config (site_id: {$auto_site_id})");
 
@@ -155,32 +155,24 @@ function load_config_from_yaml(): ?array
         'site_id' => $auto_site_id,
         'service' => [
             'type' => 'wordpress-site',
-            'tier' => 'service',
+            'shape' => 'site',
             'update_mode' => 'upsert',
         ],
-        // 19 semantic dimensions matching daemon's gnode_topology.lua (Layer 1-8)
-        // Use string values for automatic conversion via VALUES table
+        // The one topology's service body, declared by name (SPEC-ONE-TOPOLOGY §3);
+        // the daemon codes the words, this file never carries a number.
         'capabilities' => [
-            // Interface Identity
-            'protocol' => 'http_rest',
-            'native_format' => 'json',
-            'contract_stability' => 'stable',
-            // Access Control
-            'clearance_required' => 'public',
+            'protocol' => ['http_rest'],
             'auth_method' => 'session_cookie',
-            'data_sensitivity' => 'internal',
-            // Service Scope
             'service_scope' => 'client_facing',
-            // Functional Domain
-            'domain_primary' => 'content',
-            'specialization' => 'generalist',
-            // Performance Profile
+            'domain' => ['content', 'presentation'],
+            'contract_stability' => 'stable',
+            'contract_version' => 'v1',
             'throughput_tier' => 'professional',
             'latency_class' => 'responsive',
             'reliability_tier' => 'high',
-            // Workflow Context
-            'pipeline_stage' => 'deliver',
             'execution_priority' => 'normal',
+            'implementation_language' => 'php',
+            'native_format' => 'json',
         ],
         'metadata' => [
             'type' => 'wordpress-site',
@@ -249,8 +241,8 @@ function calculate_registration_hash(array $config): string
  * @deprecated 2.0.1 Use TopologyManager::forceRegister() directly
  *
  * ARCHITECTURE CHANGE (2026-01-07): Now delegates to gCore TopologyManager.
- * This ensures 19-dimension schema compliance with 19-dimensional capability vectors,
- * tier-specific slugs, and API endpoint discovery.
+ * The manager declares the site by name on the one topology (shape site, the
+ * capabilities below as words) and discovers API endpoints.
  *
  * Falls back to stream-based registration ONLY if TopologyManager is unavailable
  * (e.g., during early bootstrap before gCore is initialized).
@@ -352,7 +344,7 @@ function sync_config_to_valkey(array $config): bool
 // ============================================================================
 // DEPRECATED: Registration functions moved to gCore TopologyManager
 // ============================================================================
-// The following functions have been REMOVED as of 19-dimension schema:
+// The following functions have been REMOVED with the move to the TopologyManager flow:
 //
 // - smart_register_site()    → Use TopologyManager::smartRegister()
 // - is_site_registered()     → Use TopologyManager::getRegistrationStatus()['registered']
@@ -370,8 +362,8 @@ function sync_config_to_valkey(array $config): bool
  * Theme Activation Hook
  *
  * Delegates registration to gCore's TopologyManager (SINGLE AUTHORITY).
- * This ensures 19-dimension schema compliance with:
- * - 19-dimensional capability vectors (including tier and environment)
+ * The TopologyManager flow gives:
+ * - a declaration by name on the one topology (shape site, environment as a header slot)
  * - Tier-specific service slug patterns
  * - API endpoint discovery
  * - Hash-based idempotency
