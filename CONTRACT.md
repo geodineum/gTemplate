@@ -81,7 +81,7 @@ Evidence: `FILTER_REGISTRY.md`.
 
 ### 1.6 Topology registration (→ gNode daemon)
 
-`TopologyManager.forceRegister()` writes a 19-dimensional service registration. Manager/service configs live in `{site_id}:config:{category}` keys — **Hashes / strings, not streams** — written via `SETEX` (e.g. `{site_id}:config:registration`, `inc/registration.php:314-318`). Key schema documented at `inc/integrations/gnode/config.php:16`. (cross_deps)
+`TopologyManager.forceRegister()` declares the site on the constellation's one topology by name (shape, environment, axis words; the daemon encodes them). Manager/service configs live in `{site_id}:config:{category}` keys — **Hashes / strings, not streams** — written via `SETEX` (e.g. `{site_id}:config:registration`, `inc/registration.php:314-318`). Key schema documented at `inc/integrations/gnode/config.php:16`. (cross_deps)
 
 ---
 

@@ -109,7 +109,7 @@ CONSUMES:
 - "env default `staging` (forms.php) vs `production` (detect_environment) inconsistency"
 - "gCore MU-plugin service locator: gnode_client / CommsManager / TopologyManager / SecurityManager"
 - "9-phase autoload bootstrap, 4-tier config cache (mem/APCu/ValKey/YAML)"
-- "19-dimensional capability schema topology registration"
+- "site declared on the one topology by name (daemon encodes)"
 - "FILTER_REGISTRY.md gtemplate_* child-theme public hook contract"
 - "[gform] consent mandatory + 20/h/fingerprint rate limit + XTRIM ~5000 retention"
 - "disk-fallback Tera templates live in templates/faces/"
