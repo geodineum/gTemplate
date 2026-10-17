@@ -202,6 +202,30 @@ function gtemplate_comms_route_for(string $form_id, string $deliver): array {
 }
 
 /**
+ * Content-level spam verdict for email-delivered forms, or null when it reads as
+ * human. Catches the bot that passes honeypot, timing and JS: subject and body
+ * are single random mixed-case tokens ("riZhwvtdPrddYyXiiSMNRk"), the sender a
+ * dotted throwaway gmail. Two signals are required so no one trait rejects.
+ */
+function gtemplate_spam_verdict(string $name, string $email, string $subject, string $message): ?string {
+    $random = static function (string $s): bool {
+        $s = trim($s);
+        return strlen($s) >= 12 && preg_match('/^[A-Za-z]+$/', $s) === 1
+            && preg_match_all('/[A-Z]/', substr($s, 1)) >= 3;
+    };
+    $signals = [];
+    if ($random($message)) { $signals[] = 'random-body'; }
+    if ($random($subject)) { $signals[] = 'random-subject'; }
+    if ($random(str_replace(' ', '', $name))) { $signals[] = 'random-name'; }
+    $at = strrpos($email, '@');
+    if ($at !== false && in_array(strtolower(substr($email, $at + 1)), ['gmail.com', 'googlemail.com'], true)
+        && substr_count(substr($email, 0, $at), '.') >= 3) {
+        $signals[] = 'dotted-gmail';
+    }
+    return count($signals) >= 2 ? implode('+', $signals) : null;
+}
+
+/**
  * REST endpoint: generic [gform] submission.
  *
  * Captures any form rendered by [gform] into a per-form stream
@@ -226,7 +250,7 @@ function gtemplate_rest_submit_form($request) {
     }
     // Timing (humans take > 3s).
     $loaded = (int) ($params['_form_load_time'] ?? 0);
-    if ($loaded > 0 && (time() - $loaded) < 3) {
+    if ($loaded <= 0 || (time() - $loaded) < 3) {
         return new WP_REST_Response(['success' => false, 'error' => 'Please take your time filling out the form.'], 400);
     }
     // JS challenge (proves JS executed).
@@ -272,6 +296,11 @@ function gtemplate_rest_submit_form($request) {
         }
         if (strlen(trim($email_msg)) < 10) {
             return new WP_REST_Response(['success' => false, 'error' => 'Please provide a longer message (at least 10 characters).'], 400);
+        }
+        $spam = gtemplate_spam_verdict($email_name, $email_addr, (string) ($fields['subject'] ?? ''), $email_msg);
+        if ($spam !== null) {
+            gtemplate_track_error("[gTemplate gform] Spam dropped ({$spam}): " . gtemplate_get_client_identifier());
+            return new WP_REST_Response(['success' => true, 'message' => 'Thank you.'], 200);
         }
     }
 
@@ -409,7 +438,7 @@ function gtemplate_rest_submit_contact_form($request) {
     // Anti-spam: Check form timing (humans take > 3 seconds)
     $form_load_time = (int) $request->get_param('_form_load_time');
     $now = time();
-    if ($form_load_time > 0 && ($now - $form_load_time) < 3) {
+    if ($form_load_time <= 0 || ($now - $form_load_time) < 3) {
         gtemplate_track_error("[gTemplate Contact] Timing check failed (too fast): " . gtemplate_get_client_identifier());
         return new WP_REST_Response([
             'success' => false,
@@ -441,6 +470,12 @@ function gtemplate_rest_submit_contact_form($request) {
             'success' => false,
             'error' => 'Please provide a longer message (at least 10 characters).'
         ], 400);
+    }
+
+    $spam = gtemplate_spam_verdict((string) $name, (string) $email, (string) $subject, (string) $message);
+    if ($spam !== null) {
+        gtemplate_track_error("[gTemplate Contact] Spam dropped ({$spam}): " . gtemplate_get_client_identifier());
+        return new WP_REST_Response(['success' => true, 'message' => 'Thank you for your message.'], 200);
     }
 
     // Get source URL and face ID for metadata
