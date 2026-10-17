@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
  * Theme version - used for cache busting and compatibility checks
  */
 if (!defined('GTEMPLATE_VERSION')) {
-    define('GTEMPLATE_VERSION', '1.0.3');
+    define('GTEMPLATE_VERSION', '2.0.0');
 }
 
 /**
