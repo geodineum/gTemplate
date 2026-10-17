@@ -58,7 +58,7 @@ CONSUMES:
 - gCore `gNodeClientInterface`: `queueContactForm(...)→string|null`, `getStorage()→ValKeyStorage` · `forms.php:248-280`
 - gCore `CommsManager`: `initialize({site_id, node_id, use_gnode, gnode_client})`, `getRecentMessages`, `getStats`, `getSiteSettings`, `saveSiteSettings`, `testChannel`, `getDaemonStatus` · `comms.php:26-46`
 - Geodineum-COMMS wire contract: brace-literal key + scalar/JSON field split (`Geodineum-COMMS/CONTRACT.md`)
-- Operator registration config (YAML 19D capabilities schema)
+- Operator registration config (YAML: service shape + capabilities as axis words)
 - WP env map: development→testing · local→testing · staging→staging · acceptance→acceptance · production→production · `init-helpers.php:199-206`
 - ValKey ACL @ `47445`
 

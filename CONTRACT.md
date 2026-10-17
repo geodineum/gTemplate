@@ -2,7 +2,7 @@
 
 **Role:** WordPress parent theme providing gCore framework wiring, gNode-Client connectivity, 3-tier face rendering, REST API, and multi-manager integration for the Geodineum ecosystem.
 
-gTemplate is a PHP parent theme (72 files under `inc/`; `functions.php` is a thin loader for the 9-phase bootstrap) wired via the gCore MU-plugin (declared in `composer.json`). It is the sole theme-level producer of contact-form COMMS messages and of `[gform]` capture streams (`{site_id}:forms:*`), and registers a 19-dimensional service topology with the gNode daemon.
+gTemplate is a PHP parent theme (72 files under `inc/`; `functions.php` is a thin loader for the 9-phase bootstrap) wired via the gCore MU-plugin (declared in `composer.json`). It is the sole theme-level producer of contact-form COMMS messages and of `[gform]` capture streams (`{site_id}:forms:*`), and declares the site by name on the constellation's one topology.
 
 ---
 
@@ -62,7 +62,7 @@ Field table — see §4.3.
 
 | Function | Signature | Evidence |
 |---|---|---|
-| `gtemplate_get_registration_config()` | → array `{ site_id, service, capabilities(19D), metadata{environment,theme}, valkey{user,password_file} }` | `inc/bootstrap/gcore-init.php:23-25` |
+| `gtemplate_get_registration_config()` | → array `{ site_id, service, capabilities (axis words), metadata{environment,theme}, valkey{user,password_file} }` | `inc/bootstrap/gcore-init.php:23-25` |
 | `gtemplate_get_site_id()` | → string | `inc/helpers/init-helpers.php:128-143` |
 | `gtemplate_detect_environment()` | → DTAP enum | `inc/helpers/init-helpers.php:191-216` |
 | `gtemplate_gnode_keybased()` | → keybased client exposing `getStorage()->xadd(...)` | `inc/rendering/helpers.php:24-26` |
@@ -92,7 +92,7 @@ Evidence: `FILTER_REGISTRY.md`.
 | gNode-Client service | `gNodeClientInterface`: `queueContactForm(name, email, subject, message, metadata) → string\|null`, `getStorage() → ValKeyStorage` | gCore MU-plugin | `inc/rest/resources/forms.php:248-273` |
 | ValKey stream-key pattern | `{site_id}:gnode:comms:{environment}` with literal braces (hash-tag) | Geodineum-COMMS | `inc/rest/resources/forms.php:292` |
 | COMMS message contract | Scalar `id,type,timestamp,site_id,environment,priority` + JSON `sender,content,metadata,dispatch` (see §4) | Geodineum-COMMS | `inc/rest/resources/forms.php:299-330`; `Geodineum-COMMS/CONTRACT.md` |
-| Registration config schema | YAML: `version, site_id, service{type,tier,update_mode}, capabilities{19D}, metadata{environment,theme,type,domain}, valkey{user,password_file}, managers{}` | Operator provision | `registration.yaml`, `inc/gNodeConfigLoader.php` |
+| Registration config schema | YAML: `version, site_id, service{type,shape,update_mode}, capabilities{axis words}, metadata{environment,theme,type,domain}, valkey{user,password_file}, managers{}` | Operator provision | `registration.yaml`, `inc/gNodeConfigLoader.php` |
 | WP environment mapping | `WP_ENVIRONMENT_TYPE`: development→testing, local→testing, staging→staging, acceptance→acceptance, production→production | WordPress | `inc/helpers/init-helpers.php:199-206` |
 | ValKey credentials | ValKey ACL user at port `47445`; from registration `valkey.user` + `valkey.password_file` | gCore managed | `inc/gNodeConfigLoader.php:401, 609-610` |
 | gCore CommsManager | Service `CommsManager`: `initialize({site_id, node_id, use_gnode, gnode_client})`, `getRecentMessages(siteId, env, count)`, `getStats`, `getSiteSettings`, `saveSiteSettings`, `testChannel`, `getDaemonStatus` | gCore | `inc/integrations/managers/comms.php:26-46` |
@@ -163,7 +163,7 @@ Consumers must tolerate producer-side `XTRIM ~5000` retention and the rate-limit
 
 ### 4.4 Registration config key
 
-**Key:** `{site_id}:config:registration` (ValKey GET). **Content:** JSON-encoded registration config — `version, site_id, service, capabilities(19D), metadata, valkey`. **Source:** `inc/registration.php:85-86, 314-318`.
+**Key:** `{site_id}:config:registration` (ValKey GET). **Content:** JSON-encoded registration config — `version, site_id, service, capabilities (axis words), metadata, valkey`. **Source:** `inc/registration.php:85-86, 314-318`.
 
 ### 4.5 Filter registry
 
@@ -176,7 +176,7 @@ Consumers must tolerate producer-side `XTRIM ~5000` retention and the rate-limit
 - `gNodeClientInterface` (`gCore\gNode`) — `queueContactForm()`, `getStorage()`
 - `WP_REST_Request`, `WP_REST_Response` — WordPress REST framework
 - `ValKeyStorage` (`gCore\gNode\Storage`) — `XADD`, `GET`, `SETEX` abstraction
-- Registration config array: `{version, site_id, service{type,tier,update_mode}, capabilities{19D}, metadata{type,theme,environment,domain}, valkey{user,password_file}, managers{}}`
+- Registration config array: `{version, site_id, service{type,shape,update_mode}, capabilities{axis words}, metadata{type,theme,environment,domain}, valkey{user,password_file}, managers{}}`
 - COMMS message entry (post-XADD): `{id, type, timestamp, site_id, environment, priority, sender, content, metadata, dispatch}`
 
 ---
