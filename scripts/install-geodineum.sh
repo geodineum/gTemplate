@@ -1117,7 +1117,7 @@ check_ecosystem() {
                 log_info "Searching for gNode..."
                 local found=""
                 for candidate in /home/*/gh/gNode /opt/geodineum/gNode /opt/gNode; do
-                    if [[ -x "${candidate}/scripts/register-site.sh" ]] || [[ -x "${candidate}/scripts/setup-site-acl.sh" ]]; then
+                    if [[ -x "${candidate}/scripts/onboard-service.sh" ]]; then
                         found="$candidate"
                         break
                     fi
