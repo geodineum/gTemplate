@@ -39,64 +39,8 @@ trait GtemplateCLI_Registration
      */
     public function register($args, $assoc_args)
     {
-        // Commit 1.10.b: the previous body called
-        // \gTemplate\smart_register_site() and
-        // \gTemplate\get_registration_status() — both DELETED in
-        // registration.php's 2.0.1 cleanup. The CLI's first invocation
-        // was guaranteed-fatal. Replaced with the canonical flow per
-        // the breadcrumb at inc/registration.php:354-366: route through
-        // gCore TopologyManager (smartRegister + getRegistrationStatus).
-        // Fail-fast if gCore or TopologyManager is unavailable rather
-        // than silently returning misleading status.
-        $force = isset($assoc_args['force']);
-
-        WP_CLI::line('');
-        WP_CLI::line('=== gTemplate Site Registration ===');
-        WP_CLI::line('');
-
-        $config = \gTemplate\load_registration_config();
-        if (!$config) {
-            WP_CLI::error('Failed to load registration.yaml');
-            return;
-        }
-
-        WP_CLI::line('Config loaded: registration.yaml');
-        WP_CLI::line('Site ID: ' . ($config['site_id'] ?? 'unknown'));
-        WP_CLI::line('');
-
-        $topology = self::getTopologyManager();
-        // self::getTopologyManager() WP_CLI::error()s on miss, so a
-        // returned object means gCore + TopologyManager are live.
-
-        $status = $topology->getRegistrationStatus();
-
-        if (!empty($status['registered']) && !$force) {
-            WP_CLI::line('Status: Already registered');
-            WP_CLI::line('  Hash: ' . substr((string) ($status['hash'] ?? ''), 0, 16) . '...');
-            WP_CLI::line('  Registered at: ' . ($status['registered_at'] ?? 'unknown'));
-            WP_CLI::line('');
-            WP_CLI::line('Checking for config changes...');
-        }
-
-        WP_CLI::line($force ? 'Force registering...' : 'Registering...');
-
-        $success = method_exists($topology, 'smartRegister')
-            ? $topology->smartRegister($force)
-            : $topology->forceRegister();
-
-        WP_CLI::line('');
-
-        if ($success) {
-            $new_status = $topology->getRegistrationStatus();
-            WP_CLI::success('Registration completed successfully!');
-            WP_CLI::line('  Hash: ' . substr((string) ($new_status['hash'] ?? ''), 0, 16) . '...');
-            WP_CLI::line('  Method: ' . ($new_status['method'] ?? 'unknown'));
-            WP_CLI::line('  Registered at: ' . ($new_status['registered_at'] ?? 'unknown'));
-        } else {
-            WP_CLI::error('Registration failed! Check error log for details.');
-        }
-
-        WP_CLI::line('');
+        WP_CLI::warning('Registering is not the theme\'s job. Run on the host:  sudo geodineum register ' . ABSPATH);
+        WP_CLI::line('This site\'s registration as the constellation sees it:  sudo geodineum status <site_id>');
     }
 
     /**

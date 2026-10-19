@@ -81,7 +81,7 @@ Evidence: `FILTER_REGISTRY.md`.
 
 ### 1.6 Topology registration (→ gNode daemon)
 
-`TopologyManager.forceRegister()` declares the site on the constellation's one topology by name (shape, environment, axis words; the daemon encodes them). Manager/service configs live in `{site_id}:config:{category}` keys — **Hashes / strings, not streams** — written via `SETEX` (e.g. `{site_id}:config:registration`, `inc/registration.php:314-318`). Key schema documented at `inc/integrations/gnode/config.php:16`. (cross_deps)
+The theme does not register the site: `geodineum register` does (identity, topology entity, placement, intent), and activating or switching themes changes nothing there. Manager/service configs live in `{site_id}:config:{category}` keys — **Hashes / strings, not streams** — written via `SETEX` (e.g. `{site_id}:config:registration`, `inc/registration.php:314-318`). Key schema documented at `inc/integrations/gnode/config.php:16`. (cross_deps)
 
 ---
 

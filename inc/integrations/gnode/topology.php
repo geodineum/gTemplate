@@ -196,10 +196,3 @@ function gtemplate_has_topology(): bool {
     return !($status['stub_mode'] ?? true);
 }
 
-/**
- * Deregister from topology when theme is switched
- */
-function gtemplate_deregister_on_theme_switch() {
-    gtemplate_deregister_from_topology();
-}
-add_action('switch_theme', 'gtemplate_deregister_on_theme_switch');

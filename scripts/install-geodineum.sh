@@ -110,6 +110,7 @@ prompt_yes_no() {
     local prompt="$1"
     local default="${2:-y}"
     local response
+    if [[ "${YES:-false}" == "true" ]]; then [[ "$default" =~ ^[Yy]$ ]]; return; fi
 
     if [[ "$default" == "y" ]]; then
         read -p "$prompt [Y/n] " -n 1 -r response
@@ -127,6 +128,7 @@ prompt_input() {
     local default="$2"
     local var_name="$3"
     local response
+    if [[ "${YES:-false}" == "true" ]]; then eval "$var_name='$default'"; return 0; fi
 
     if [[ -n "$default" ]]; then
         read -p "$prompt [$default]: " response
@@ -136,6 +138,16 @@ prompt_input() {
     fi
 
     eval "$var_name='$response'"
+}
+
+# One line per artifact this run creates (the registration ledger read by
+# geodineum deregister): <class>\t<kind>\t<target>.
+ledger() {
+    [[ -n "${LEDGER_FILE:-}" ]] || return 0
+    local line="$1"$'\t'"$2"$'\t'"$3"
+    install -d -m 0750 "$(dirname "$LEDGER_FILE")"
+    grep -qxF -- "$line" "$LEDGER_FILE" 2>/dev/null || printf '%s\n' "$line" >> "$LEDGER_FILE"
+    chmod 0640 "$LEDGER_FILE"
 }
 
 generate_password() {
@@ -246,7 +258,7 @@ detect_child_theme() {
 detect_gnode() {
     local check_path="${GNODE_PATH_ENV:-$GNODE_PATH}"
 
-    if [[ -d "${check_path}/scripts" ]] && ([[ -x "${check_path}/scripts/register-site.sh" ]] || [[ -x "${check_path}/scripts/setup-site-acl.sh" ]]); then
+    if [[ -x "${check_path}/scripts/onboard-service.sh" ]]; then
         GNODE_SOURCE="$check_path"
         GNODE_SCRIPTS="${check_path}/scripts"
         GNODE_PASSWORD_DIR="${check_path}/.gnode"
@@ -649,33 +661,6 @@ install_ssl() {
     return 1
 }
 
-install_valkey_acl() {
-    local site_id="$1"
-    local environment="$2"
-
-    log_info "Creating ValKey ACL user: gnode_client_${site_id}"
-
-    # Try register-site.sh (current) or setup-site-acl.sh (legacy)
-    local acl_script=""
-    for candidate in "${GNODE_SCRIPTS}/register-site.sh" "${GNODE_SCRIPTS}/setup-site-acl.sh"; do
-        if [[ -x "$candidate" ]]; then
-            acl_script="$candidate"
-            break
-        fi
-    done
-
-    if [[ -n "$acl_script" ]]; then
-        "$acl_script" "$site_id" --environment "$environment" || {
-            log_error "Failed to create ValKey ACL user"
-            return 1
-        }
-        log_success "ValKey ACL user created"
-    else
-        log_error "register-site.sh not found at ${GNODE_SCRIPTS}"
-        return 1
-    fi
-}
-
 install_gcore() {
     local wp_root="$1"
 
@@ -923,89 +908,6 @@ activate_theme() {
     fi
 }
 
-register_gnode() {
-    local wp_root="$1"
-    local theme_prefix="${CHILD_THEME_NAME:-gtemplate}"
-
-    if [[ -z "$WP_CLI" ]]; then
-        log_warning "WP-CLI not found - register with gNode manually"
-        return 1
-    fi
-
-    cd "$wp_root"
-
-    # Apache's SetEnv block injects VALKEY_USER + VALKEY_PASSWORD_FILE
-    # into PHP requests, but WP-CLI invocations bypass Apache entirely —
-    # gCore's bootstrap-loader then falls into its glob fallback which
-    # FAILS for www-data because /etc/geodineum/credentials/ is 0751
-    # (traverse but not list). Result: gCore runs in degraded mode,
-    # registration silently no-ops, gtemplate_registration_hash never
-    # gets written. Pass the same env vars explicitly to wp-cli so CLI
-    # context behaves like Apache context.
-    local site_id_local
-    site_id_local=$(echo "$DOMAIN" | sed 's/[.-]/_/g')
-    local pwfile="${GNODE_PASSWORD_DIR}/valkey_client_${site_id_local}.password"
-    local -a wp_env=(
-        "VALKEY_USER=gnode_client_${site_id_local}"
-        "VALKEY_PASSWORD_FILE=${pwfile}"
-        "VALKEY_HOST=${VALKEY_HOST:-127.0.0.1}"
-        "VALKEY_PORT=${VALKEY_PORT:-47445}"
-        "GNODE_SITE_ID=${site_id_local}"
-        "GNODE_ENVIRONMENT=${ENVIRONMENT:-testing}"
-    )
-
-    local registered
-    registered=$(sudo -u ${WEB_USER} env "${wp_env[@]}" "$WP_CLI" option get ${theme_prefix}_registration_hash 2>/dev/null || echo "")
-
-    if [[ -n "$registered" ]]; then
-        log_success "Already registered with gNode (hash: ${registered:0:8}...)"
-        return 0
-    fi
-
-    # don't suppress stderr — the previous `2>/dev/null` hid the
-    # actual reason registration failed, leaving operators with a
-    # bare warning and no path forward. Capture both streams to a
-    # temp file so we can include the error in the log if it fails.
-    log_info "Registering with gNode..."
-    local reg_log
-    reg_log=$(mktemp)
-    local reg_rc=0
-
-    # Try theme-specific CLI command first, then fall back to gtemplate.
-    # every wp-cli invocation now carries the Geodineum env vars
-    # so gCore bootstrap-loader can authenticate against ValKey from CLI.
-    if sudo -u ${WEB_USER} env "${wp_env[@]}" "$WP_CLI" ${theme_prefix} register >"$reg_log" 2>&1; then
-        log_success "Registered with gNode"
-    elif sudo -u ${WEB_USER} env "${wp_env[@]}" "$WP_CLI" gtemplate register >"$reg_log" 2>&1; then
-        log_success "Registered with gNode (via gtemplate CLI)"
-    else
-        reg_rc=1
-        # Ensure gnode-daemon is running (it's a registration prerequisite
-        # — registration writes to ValKey via the daemon's connection
-        # pool) and retry once. Covers the case where the daemon was
-        # restarted mid-install or hasn't finished activating yet.
-        if ! systemctl is-active --quiet gnode-daemon; then
-            log_info "gNode daemon not running — starting + retrying registration"
-            systemctl reset-failed gnode-daemon 2>/dev/null || true
-            systemctl start gnode-daemon 2>/dev/null || true
-            sleep 3
-            if sudo -u ${WEB_USER} env "${wp_env[@]}" "$WP_CLI" gtemplate register >"$reg_log" 2>&1; then
-                log_success "Registered with gNode (after daemon restart)"
-                reg_rc=0
-            fi
-        fi
-
-        if [[ "$reg_rc" -ne 0 ]]; then
-            log_warning "gNode registration failed — details below:"
-            sed 's/^/    /' "$reg_log"
-            log_info "Manual retry: sudo VALKEY_USER=gnode_client_${site_id_local} VALKEY_PASSWORD_FILE=${pwfile} -u ${WEB_USER} wp gtemplate register --path=${wp_root}"
-        fi
-    fi
-
-    rm -f "$reg_log"
-    return $reg_rc
-}
-
 #######################################
 # Ecosystem Check
 #######################################
@@ -1091,9 +993,8 @@ check_ecosystem() {
     fi
 
     # Check gNode daemon: retry briefly to absorb activating→active
-    # transitions (mirrors validate-geodineum-config.sh). If still
-    # inactive after retry, attempt auto-start — registration with gNode
-    # in step register_gnode() needs the daemon up to write to ValKey.
+    # transitions (mirrors validate-geodineum-config.sh); if still inactive,
+    # attempt auto-start (the registration that follows needs it).
     local _daemon_active="false"
     local _retry
     for _retry in 1 2 3 4 5 6; do
@@ -1321,6 +1222,18 @@ parse_args() {
                 CHILD_THEME_PATH="$2"
                 shift 2
                 ;;
+            --yes|-y)
+                YES=true
+                shift
+                ;;
+            --no-ssl)
+                NO_SSL=true
+                shift
+                ;;
+            --ledger)
+                LEDGER_FILE="$2"
+                shift 2
+                ;;
             --help|-h)
                 usage
                 exit 0
@@ -1353,6 +1266,9 @@ usage() {
     echo "Options:"
     echo "  --theme <name>          Child theme slug (e.g., gcube)"
     echo "  --theme-path <path>     Path to child theme source (auto-detected if omitted)"
+    echo "  --yes, -y               No questions (defaults)"
+    echo "  --no-ssl                Skip the certificate"
+    echo "  --ledger <file>         Record what this run creates (geodineum register passes it)"
     echo "  --help, -h              Show this help message"
     echo ""
     echo "Examples:"
@@ -1362,7 +1278,9 @@ usage() {
     echo "  # Install parent theme only (standalone demo)"
     echo "  sudo $0 example.com production"
     echo ""
-    echo "The script auto-detects existing infrastructure and skips already-completed steps."
+    echo "The WordPress stack only: database, WordPress, vhost, TLS, gCore and themes."
+    echo "Identity and topology come from the one route:"
+    echo "  sudo geodineum register <domain> --new website-wp --env <tier>"
     echo "Safe to re-run (idempotent)."
 }
 
@@ -1418,7 +1336,6 @@ main() {
     local need_wordpress=true
     local need_vhost=true
     local need_ssl=true
-    local need_valkey_acl=true
 
     if detect_database "$db_name"; then
         log_success "Database exists: ${db_name}"
@@ -1449,12 +1366,6 @@ main() {
         log_info "SSL certificate not found (will request)"
     fi
 
-    if [[ -f "$password_file" ]]; then
-        log_success "ValKey ACL user exists"
-        need_valkey_acl=false
-    else
-        log_info "ValKey ACL user not found (will create)"
-    fi
 
     # Collect required information
     local db_pass=""
@@ -1532,31 +1443,31 @@ main() {
     # 1. Database
     if [[ "$need_database" == "true" ]]; then
         install_database "$db_name" "$db_user" "$db_pass"
+        ledger data database "$db_name"
+        ledger data dbuser "$db_user"
     fi
 
     # 2. WordPress
     if [[ "$need_wordpress" == "true" ]]; then
+        [[ -e "$wp_root" ]] || ledger data dir "$wp_root"
         install_wordpress "$wp_root" "$DOMAIN" "$db_name" "$db_user" "$db_pass" "$admin_user" "$admin_pass" "$admin_email"
     fi
 
     # 3. Apache vhost
     if [[ "$need_vhost" == "true" ]]; then
         install_vhost "$DOMAIN" "$wp_root" "$site_id" "$ENVIRONMENT"
+        ledger config vhost "$DOMAIN"
     fi
 
     # 4. SSL
-    if [[ "$need_ssl" == "true" ]]; then
+    if [[ "$need_ssl" == "true" && "${NO_SSL:-false}" != "true" ]]; then
         if prompt_yes_no "Request SSL certificate now?" "y"; then
-            install_ssl "$DOMAIN" || true
+            install_ssl "$DOMAIN" && ledger config cert "$DOMAIN" || true
         else
             log_info "Skipping SSL - run later: sudo certbot --apache -d ${DOMAIN} -d www.${DOMAIN}"
         fi
     fi
 
-    # 5. ValKey ACL
-    if [[ "$need_valkey_acl" == "true" ]]; then
-        install_valkey_acl "$site_id" "$ENVIRONMENT"
-    fi
 
     # 6. gCore
     install_gcore "$wp_root"
@@ -1573,8 +1484,6 @@ main() {
     # 10. Activate theme
     activate_theme "$wp_root"
 
-    # 11. Register with gNode
-    register_gnode "$wp_root"
 
     # Harden permissions — security-first: no world-readable
     # Files: 640 (owner rw, group r), Directories: 750 (owner rwx, group rx)

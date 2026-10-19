@@ -39,7 +39,7 @@ INPUTS:
 OUTPUTS:
 - → Geodineum-COMMS: `XADD {site_id}:gnode:comms:{environment} *` top-level scalar `id/type/timestamp/site_id/environment/priority` + json_encode'd `sender/content/metadata/dispatch` · `forms.php:299-330`
 - → Dashboard/consumers: `XADD {site_id}:forms:{form_id} *` `[form_id, ts, iso, fp, uri, ua, consent, fields(JSON)]` + `XTRIM ~5000` · `forms.php:146-157` — audience-data surface
-- → gNode daemon: `TopologyManager.forceRegister()` declares the site by name on the one topology · `{site_id}:config:{category}` manager configs = Hash/string (NOT stream), written via `SETEX` · `registration.php:314-318` · schema `config.php:16`
+- → gNode daemon: registration is `geodineum register`, NOT the theme (no activation/switch hooks; `wp gtemplate register` points there) · `{site_id}:config:{category}` manager configs = Hash/string (NOT stream), written via `SETEX` · `registration.php:314-318` · schema `config.php:16`
 - → HTTP: [gform]+validation = JSON `{success:bool, message?|error?}` · contact delivery outcome = `text/html` fragment + exit (`forms.php:342-351` success, `406-416` error 500)
 - → Child themes: filter/action hooks
 

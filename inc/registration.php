@@ -358,69 +358,11 @@ function sync_config_to_valkey(array $config): bool
 // @see GNODE_SERVICE_REGISTRATION_PROTOCOL.md
 // ============================================================================
 
-/**
- * Theme Activation Hook
- *
- * Delegates registration to gCore's TopologyManager (SINGLE AUTHORITY).
- * The TopologyManager flow gives:
- * - a declaration by name on the one topology (shape site, environment as a header slot)
- * - Tier-specific service slug patterns
- * - API endpoint discovery
- * - Hash-based idempotency
- *
- * @see gCore: Modules/Managers/Base/TopologyManager/TopologyManager.php
- */
-add_action('after_switch_theme', function() {
-    // Only run for the current theme (check template name dynamically)
-    $theme = wp_get_theme();
-    $current_template = $theme->get_template();
-    $current_stylesheet = $theme->get_stylesheet();
-
-    // Verify this hook is running for our theme by checking if this file is part of the active theme
-    $this_file = __FILE__;
-    $theme_dir = get_template_directory();
-    if (strpos($this_file, $theme_dir) === false) {
-        return;
-    }
-
-    gtemplate_track_error("gTemplate: Theme activated ({$current_template}) - delegating to gCore TopologyManager");
-
-    global $gCore;
-
-    if (!$gCore) {
-        gtemplate_track_error("gTemplate: gCore not available during theme activation");
-        return;
-    }
-
-    try {
-        // Get TopologyManager via gCore resolver (returns stub or extension)
-        $topology = $gCore->getService('TopologyManager');
-
-        if (!$topology || !$topology->isInitialized()) {
-            gtemplate_track_error("gTemplate: TopologyManager not initialized during theme activation");
-            return;
-        }
-
-        // Force re-registration on theme activation (ensures clean state)
-        $success = $topology->forceRegister();
-
-        if ($success) {
-            $status = $topology->getRegistrationStatus();
-            gtemplate_track_error("gTemplate: Site registered via TopologyManager (hash: " . substr($status['hash'] ?? '', 0, 8) . "...)");
-        } else {
-            gtemplate_track_error("gTemplate: Registration failed - check gNode daemon status");
-        }
-
-    } catch (\Throwable $e) {
-        gtemplate_track_error("gTemplate: Theme activation registration failed: " . $e->getMessage());
-    }
-}, 10);
+// Registration is not the theme's: `geodineum register` registers the site, and
+// `geodineum deregister` removes it. Activating or switching themes changes neither.
 
 /**
- * Theme Deactivation Hook
- *
- * Optionally deregister the site when switching away from this theme.
- * This keeps the topology clean.
+ * Theme Deactivation Hook: logs only. The site stays registered.
  */
 add_action('switch_theme', function($new_name, $new_theme) {
     // Only run when switching AWAY from our theme
@@ -432,7 +374,5 @@ add_action('switch_theme', function($new_name, $new_theme) {
     }
 
     $theme_name = wp_get_theme()->get('Name');
-    gtemplate_track_error("gTemplate: Theme deactivated ({$theme_name}) - site remains registered (manual deregister via CLI if needed)");
-    // Note: We don't auto-deregister to prevent accidental data loss
-    // Use: wp gtemplate deregister --force
+    gtemplate_track_error("gTemplate: Theme deactivated ({$theme_name}) - site remains registered (it leaves with: sudo geodineum deregister <site_id>)");
 }, 10, 2);
