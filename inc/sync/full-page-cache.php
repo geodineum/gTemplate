@@ -156,6 +156,12 @@ function gtemplate_request_is_cacheable(): bool {
         if ($key === 'gan_access') {
             return false;
         }
+        // Geodine-FrontEnd: the alpha door adds a menu entry and a session shows the window
+        // at the same URLs anonymous visitors see. No read, no write for its holders.
+        // Mirrored in gCore early-page-cache.php.
+        if ($key === 'geodine_alpha_door' || $key === '__Host-geodine_alpha') {
+            return false;
+        }
     }
 
     return true;
