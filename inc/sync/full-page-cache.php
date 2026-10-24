@@ -127,7 +127,7 @@ function gtemplate_request_is_cacheable(): bool {
     }
 
     // Don't cache pages with specific query parameters
-    $nocache_params = ['preview', 'customize_changeset_uuid', 'wp-preview'];
+    $nocache_params = ['preview', 'customize_changeset_uuid', 'wp-preview', 'alpha'];  // alpha: the Geodine door; never cached for anyone
     foreach ($nocache_params as $param) {
         if (isset($_GET[$param])) {
             return false;
