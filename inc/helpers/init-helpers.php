@@ -129,6 +129,10 @@ function gtemplate_get_site_id(): string {
     static $site_id = null;
 
     if ($site_id === null) {
+        $pool = $_SERVER['GCORE_SITE_ID'] ?? getenv('GCORE_SITE_ID');
+        if (is_string($pool) && preg_match('/^[a-z0-9_]+$/', $pool)) {
+            return $site_id = $pool;
+        }
         $reg_config = gtemplate_get_registration_config();
 
         if (!empty($reg_config['site_id'])) {
