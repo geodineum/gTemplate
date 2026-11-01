@@ -82,6 +82,14 @@ function gtemplate_register_form_routes(string $namespace): void {
  * @return bool true if the message reached the comms stream.
  */
 function gtemplate_queue_comms(string $type, array $channels, array $sender, string $subject, string $body, array $meta = [], int $priority = 3): bool {
+    // Every form that mails passes here. A dropped message reports success, so no caller falls back to wp_mail.
+    if (in_array('email', $channels, true)) {
+        $drop = gtemplate_comms_mail_gate($subject . "\n" . $body);
+        if ($drop !== null) {
+            gtemplate_track_error("[gTemplate comms] {$type} dropped ({$drop}): " . gtemplate_get_client_identifier());
+            return true;
+        }
+    }
     $source_url = $meta['source_url'] ?? home_url();
     $face_id    = (int) ($meta['face_id'] ?? 0);
     $form_id    = (string) ($meta['form_id'] ?? $type);
@@ -163,6 +171,39 @@ function gtemplate_queue_comms(string $type, array $channels, array $sender, str
     }
 
     return false;
+}
+
+/**
+ * Why a form mail must not go out, or null. 'probe': an injection probe in the text (a scanner, not a
+ * person). 'rate': this visitor sent 3 this hour or 10 today, or the site 40 this hour. Visitors are
+ * counted by a salted hash of their address, never the address. Without ValKey only the probe check runs.
+ */
+function gtemplate_comms_mail_gate(string $text): ?string {
+    $probe = '/union\s+(?:all\s+)?select|information_schema|\bsleep\(\s*\d|\bbenchmark\s*\(|waitfor\s+delay'
+        . '|\x27\s*(?:or|and)\s+[\x27\d][^=\n]{0,12}=|\$\{jndi:|<script|(?:^|:\s*)\d+\x5c?[\x27"]+\s*$/im';
+    if (preg_match($probe, $text)) {
+        return 'probe';
+    }
+    try {
+        $keybased = gtemplate_gnode_keybased();
+        $storage  = $keybased ? $keybased->getStorage() : null;
+        if (!$storage) {
+            return null;
+        }
+        $site = gtemplate_get_site_id();
+        $who  = substr(hash('sha256', gtemplate_get_client_identifier() . '|' . wp_salt('nonce')), 0, 24);
+        foreach ([["mail:{$who}:h", 3600, 3], ["mail:{$who}:d", 86400, 10], ['mail:site:h', 3600, 40]] as [$k, $ttl, $max]) {
+            $key = '{' . $site . '}:forms:rl:' . $k;
+            $n = (int) $storage->incr($key);
+            if ($n === 1 && method_exists($storage, 'expire')) {
+                $storage->expire($key, $ttl);
+            }
+            if ($n > $max) {
+                return 'rate';
+            }
+        }
+    } catch (\Throwable $e) { /* best-effort */ }
+    return null;
 }
 
 /**
