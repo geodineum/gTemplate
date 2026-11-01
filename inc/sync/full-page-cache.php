@@ -173,40 +173,47 @@ function gtemplate_request_is_cacheable(): bool {
  * @return string
  */
 function gtemplate_get_page_cache_key(): string {
+    $parsed = parse_url($_SERVER['REQUEST_URI'] ?? '/');
+    return gtemplate_page_cache_key_for($parsed['path'] ?? '/', $_GET);
+}
+
+/**
+ * The cache key of one path + query, shared by the writer and the purge so both name the same entry.
+ * Tracking parameters are left out; the rest are sorted. Key format: {{site_id}}:cache:page:{md5}
+ * (braces: Lua build_key() uses it as-is; matches the ACL pattern {{site_id}}:cache:*).
+ */
+function gtemplate_page_cache_key_for(string $path, array $query): string {
     $site_id = function_exists('\gTemplate\get_site_id_from_domain')
         ? \gTemplate\get_site_id_from_domain()
         : 'default';
 
-    // Build URL hash (path + sorted query string)
-    $path = $_SERVER['REQUEST_URI'] ?? '/';
-    $parsed = parse_url($path);
-    $clean_path = $parsed['path'] ?? '/';
-
-    // Include query string in cache key (sorted for consistency)
+    ksort($query);
     $query_parts = [];
-    if (!empty($_GET)) {
-        ksort($_GET);
-        foreach ($_GET as $k => $v) {
-            // Skip tracking/analytics params
-            if (in_array($k, ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid', 'ref'])) {
-                continue;
-            }
-            $query_parts[] = urlencode($k) . '=' . urlencode($v);
+    foreach ($query as $k => $v) {
+        if (!is_scalar($v) || in_array($k, ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid', 'ref'], true)) {
+            continue;
         }
+        $query_parts[] = urlencode((string) $k) . '=' . urlencode((string) $v);
     }
-
-    $full_path = $clean_path;
-    if (!empty($query_parts)) {
+    $full_path = $path === '' ? '/' : $path;
+    if ($query_parts) {
         $full_path .= '?' . implode('&', $query_parts);
     }
+    return "{{$site_id}}:cache:page:" . md5($full_path);
+}
 
-    // Use MD5 hash for key (short but unique)
-    $path_hash = md5($full_path);
-
-    // Key format: {{site_id}}:cache:page:{hash}
-    // Braces tell Lua build_key() to use key as-is (hash slot already specified)
-    // Must match ACL pattern {{site_id}}:cache:* or site_id:cache:*
-    return "{{$site_id}}:cache:page:{$path_hash}";
+/**
+ * The ValKey client for page-cache purges. gCore is not started in wp-admin, REST or cron, where
+ * posts are saved and scheduled posts published, so there the purge uses gCore's lightweight admin
+ * client (as keybased.php does). A front-end request keeps its own client, or none on free tier.
+ */
+function gtemplate_page_cache_client() {
+    $client = gtemplate_gnode();
+    $backend = is_admin() || (defined('REST_REQUEST') && REST_REQUEST) || wp_doing_cron() || (defined('WP_CLI') && WP_CLI);
+    if (!$client && $backend && function_exists('gcore_get_admin_gnode_client')) {
+        $client = gcore_get_admin_gnode_client();
+    }
+    return $client;
 }
 
 /**
@@ -373,7 +380,7 @@ function gtemplate_page_cache_callback(string $buffer): string {
  */
 function gtemplate_invalidate_fullpage_cache(string $url): void {
     try {
-        $gNodeClient = gtemplate_gnode();
+        $gNodeClient = gtemplate_page_cache_client();
         if (!$gNodeClient) {
             // A skipped purge keeps serving the stale page for the full TTL after
             // a content fix — never fail silently.
@@ -385,11 +392,12 @@ function gtemplate_invalidate_fullpage_cache(string $url): void {
             ? \gTemplate\get_site_id_from_domain()
             : 'default';
 
-        // Parse URL to get path
         $parsed = parse_url($url);
-        $path = $parsed['path'] ?? '/';
-        $path_hash = md5($path);
-        $cache_key = "{{$site_id}}:cache:page:{$path_hash}";
+        $query = [];
+        if (!empty($parsed['query'])) {
+            parse_str($parsed['query'], $query);
+        }
+        $cache_key = gtemplate_page_cache_key_for($parsed['path'] ?? '/', $query);
 
         $gNodeClient->fcall('GNODE_CACHE_DEL', [], [$cache_key, $site_id]);
         gtemplate_track_error("gTemplate: Invalidated page cache for {$url}");
@@ -447,7 +455,7 @@ add_action('save_post', 'gtemplate_invalidate_fullpage_cache_on_save', 100);
  */
 function gtemplate_invalidate_all_fullpage_cache(): void {
     try {
-        $gNodeClient = gtemplate_gnode();
+        $gNodeClient = gtemplate_page_cache_client();
         if (!$gNodeClient) {
             error_log('gTemplate: FULL PAGE CACHE PURGE SKIPPED — no ValKey client (stale pages serve until TTL expiry)');
             return;
