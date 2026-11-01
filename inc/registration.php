@@ -54,6 +54,11 @@ function load_registration_config(bool $force_yaml = false): ?array
  */
 function get_site_id_from_domain(): string
 {
+    // A site on its own PHP pool is told its id (env GCORE_SITE_ID); it must match gCore's early cache.
+    $pool = $_SERVER['GCORE_SITE_ID'] ?? getenv('GCORE_SITE_ID');
+    if (is_string($pool) && preg_match('/^[a-z0-9_]+$/', $pool)) {
+        return $pool;
+    }
     $domain = parse_url(get_site_url(), PHP_URL_HOST);
     return str_replace(['.', '-'], '_', $domain);
 }
