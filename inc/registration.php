@@ -102,7 +102,7 @@ function load_config_from_valkey(string $site_id): ?array
             return null;
         }
 
-        gtemplate_track_error("gTemplate Registration: Loaded config from ValKey via gCore (site_id: {$site_id})");
+        if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate Registration: Loaded config from ValKey via gCore (site_id: {$site_id})"); }
         return $config;
 
     } catch (\Throwable $e) {
@@ -145,7 +145,7 @@ function load_config_from_yaml(): ?array
                     $config['valkey']['password_file'] = '/opt/gNode/.gnode/valkey_client_' . $config['site_id'] . '.password';
                 }
 
-                gtemplate_track_error("gTemplate Registration: Loaded config from {$config_file} (site_id: {$config['site_id']})");
+                if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate Registration: Loaded config from {$config_file} (site_id: {$config['site_id']})"); }
                 return $config;
             }
         }
@@ -295,7 +295,7 @@ function sync_config_to_valkey(array $config): bool
 
         // Get gNode-Client from gCore (NEVER create directly!)
         if (!$gCore || !$gCore->hasService('gnode_client')) {
-            gtemplate_track_error("gTemplate Registration: gCore not available for config sync");
+            if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate Registration: gCore not available for config sync"); }
             return false;
         }
 

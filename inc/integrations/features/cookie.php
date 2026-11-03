@@ -106,6 +106,9 @@ function gtemplate_has_cookie_consent(string $category): bool {
             return $cookie->hasConsent($category);
         }
     } catch (\Throwable $e) {
+        if ($e instanceof \gCore\Modules\Core\Exceptions\InitializationException && $e->getMessage() === 'Core system not initialized') {
+            return $category === 'essential';
+        }
         gtemplate_track_error('gTemplate: Cookie consent check error: ' . $e->getMessage());
     }
 

@@ -85,7 +85,7 @@ function gtemplate_sync_face_mapping_to_valkey(): bool {
         $result = $gNodeClient->fcall('GNODE_CACHE_SET', [], [$key, $json, $ttl, $site_id]);
 
         if ($result !== false && $result !== null) {
-            gtemplate_track_error("gTemplate: Face mapping synced to ValKey ({$key}) - " . strlen($json) . " bytes");
+            if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate: Face mapping synced to ValKey ({$key}) - " . strlen($json) . " bytes"); }
 
             // Invalidate keybased-client bundle cache (CB-D1.13 mirror:
             // folded in from the now-removed gtemplate_sync_face_configs_to_valkey
@@ -673,7 +673,7 @@ function gtemplate_cache_post_bundle(string $slug, ?array $bundle_config = null)
         $result = $gNodeClient->fcall('GNODE_CACHE_SET', [], [$key, $json, $ttl, $site_id]);
 
         if ($result !== false && $result !== null) {
-            gtemplate_track_error("gTemplate: Cached post bundle '{$slug}' ({$cache_data['post_count']} posts) - " . strlen($json) . " bytes");
+            if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate: Cached post bundle '{$slug}' ({$cache_data['post_count']} posts) - " . strlen($json) . " bytes"); }
             return true;
         }
 
