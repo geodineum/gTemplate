@@ -36,7 +36,6 @@ function gtemplate_enqueue_parent_assets() {
             'expandEnabled' => (bool) get_theme_mod('gtemplate_expand_enabled', true),
             'showCloseButton' => (bool) get_theme_mod('gtemplate_expand_show_close', true),
             'showHint' => (bool) get_theme_mod('gtemplate_expand_show_hint', true),
-            'maxZoom' => (int) get_theme_mod('gCore_max_zoom', 90),
             'initialCell' => $routing_data['cell'],
             'initialPostId' => $routing_data['post_id'],
             'initialPostSlug' => $routing_data['post_slug'],

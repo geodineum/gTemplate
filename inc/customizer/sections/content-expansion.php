@@ -87,35 +87,6 @@ function gtemplate_customizer_content_expansion($wp_customize) {
         'type' => 'checkbox',
     ));
 
-    $wp_customize->add_setting('gCore_max_zoom', array(
-        'default' => '90',
-        'sanitize_callback' => 'absint',
-    ));
-    $wp_customize->add_control('gCore_max_zoom', array(
-        'label' => __('Maximum Content Zoom (%)', 'gtemplate'),
-        'section' => 'gCore_content_options',
-        'type' => 'range',
-        'input_attrs' => array(
-            'min' => 80,
-            'max' => 100,
-            'step' => 1,
-        ),
-    ));
-    $wp_customize->add_setting('gCore_long_press_duration', array(
-        'default' => '1300',
-        'sanitize_callback' => 'absint',
-    ));
-    $wp_customize->add_control('gCore_long_press_duration', array(
-        'label' => __('Long Press Duration (ms)', 'gtemplate'),
-        'section' => 'gCore_content_options',
-        'type' => 'range',
-        'input_attrs' => array(
-            'min' => 500,
-            'max' => 2000,
-            'step' => 50,
-        ),
-    ));
-
     // Content overlay desktop width
     $wp_customize->add_setting('content_overlay_desktop_width', array(
         'default' => '70',
