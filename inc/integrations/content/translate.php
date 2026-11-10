@@ -223,6 +223,9 @@ function gtemplate_maybe_add_header_language_switcher(): void
  */
 function gtemplate_add_hreflang_tags(): void
 {
+    if (\apply_filters('gtemplate_child_seo_active', false)) {
+        return;
+    }
     $translate = gtemplate_get_translate_manager();
     if (!gtemplate_translation_available() || !\method_exists($translate, 'getSupportedLanguages')) {
         return;
