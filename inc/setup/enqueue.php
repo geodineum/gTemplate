@@ -5,16 +5,16 @@ if (!defined('ABSPATH')) exit;
 function gtemplate_enqueue_parent_assets() {
     $theme_uri = get_template_directory_uri();
     $version = GTEMPLATE_VERSION;
-    $css_ver = static fn(string $file) => (string) (@filemtime(get_template_directory() . '/assets/css/' . $file) ?: $version);
+    $asset_ver = static fn(string $path) => (string) (@filemtime(get_template_directory() . '/assets/' . $path) ?: $version);
 
     // Golden Typography System (shared across all child themes)
-    wp_enqueue_style('gtemplate-golden-typography', $theme_uri . '/assets/css/golden-typography.css', [], $css_ver('golden-typography.css'));
+    wp_enqueue_style('gtemplate-golden-typography', $theme_uri . '/assets/css/golden-typography.css', [], $asset_ver('css/golden-typography.css'));
 
     // Geodineum content system — the .geo page-content vocabulary
-    wp_enqueue_style('gtemplate-geodineum-content', $theme_uri . '/assets/css/geodineum-content.css', ['gtemplate-golden-typography'], $css_ver('geodineum-content.css'));
+    wp_enqueue_style('gtemplate-geodineum-content', $theme_uri . '/assets/css/geodineum-content.css', ['gtemplate-golden-typography'], $asset_ver('css/geodineum-content.css'));
 
     // Self-hosted fonts (Ubuntu, Rubik)
-    wp_enqueue_style('gtemplate-fonts', $theme_uri . '/assets/css/fonts.css', [], $css_ver('fonts.css'));
+    wp_enqueue_style('gtemplate-fonts', $theme_uri . '/assets/css/fonts.css', [], $asset_ver('css/fonts.css'));
 
     // Allow child themes to enqueue their geometry CSS
     $child_styles = apply_filters('gtemplate_styles', []);
@@ -51,21 +51,21 @@ function gtemplate_enqueue_parent_assets() {
 
     // 3D Nav Cubes (opt-in by child themes)
     if (apply_filters('gtemplate_nav_renderer', 'flat') === 'cube-3d') {
-        wp_enqueue_style('gtemplate-nav-cubes', $theme_uri . '/assets/css/nav-cubes.css', [], $version);
-        wp_enqueue_script('gtemplate-nav-cubes', $theme_uri . '/assets/js/nav-cubes.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+        wp_enqueue_style('gtemplate-nav-cubes', $theme_uri . '/assets/css/nav-cubes.css', [], $asset_ver('css/nav-cubes.css'));
+        wp_enqueue_script('gtemplate-nav-cubes', $theme_uri . '/assets/js/nav-cubes.js', [], $asset_ver('js/nav-cubes.js'), ['in_footer' => true, 'strategy' => 'defer']);
     }
 
     // PWA loader (shared)
-    wp_enqueue_script('gtemplate-pwa-loader', $theme_uri . '/assets/js/pwa-loader.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+    wp_enqueue_script('gtemplate-pwa-loader', $theme_uri . '/assets/js/pwa-loader.js', [], $asset_ver('js/pwa-loader.js'), ['in_footer' => true, 'strategy' => 'defer']);
 
     // Geodineum content behaviors — audience switch, scroll reveal, presentation
     // SVGs. No-ops unless a .geo page provides the markup; safe site-wide.
-    wp_enqueue_script('gtemplate-geo-behaviors', $theme_uri . '/assets/js/geo-behaviors.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+    wp_enqueue_script('gtemplate-geo-behaviors', $theme_uri . '/assets/js/geo-behaviors.js', [], $asset_ver('js/geo-behaviors.js'), ['in_footer' => true, 'strategy' => 'defer']);
 
     // Cookieless visitor analytics beacon. Not enqueued for operators previewing
     // their own site, so admin traffic never inflates the counts.
     if (!(is_user_logged_in() && current_user_can('manage_options'))) {
-        wp_enqueue_script('gtemplate-analytics-beacon', $theme_uri . '/assets/js/analytics-beacon.js', [], $version, ['in_footer' => true, 'strategy' => 'defer']);
+        wp_enqueue_script('gtemplate-analytics-beacon', $theme_uri . '/assets/js/analytics-beacon.js', [], $asset_ver('js/analytics-beacon.js'), ['in_footer' => true, 'strategy' => 'defer']);
         wp_localize_script('gtemplate-analytics-beacon', 'gtemplateAnalytics', [
             'url' => rest_url(gtemplate_get_rest_namespace() . '/analytics/hit'),
             'clickUrl' => rest_url(gtemplate_get_rest_namespace() . '/analytics/click'),
