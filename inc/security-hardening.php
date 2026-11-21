@@ -180,6 +180,9 @@ add_action('send_headers', function() {
         "'self'", 'wss:', 'https:',
     ]);
 
+    // No worker-src unless a child theme asks for one (workers then follow script-src).
+    $worker_src = apply_filters('gtemplate_csp_worker_src', []);
+
     $csp_directives = [
         "default-src 'self'",
         'script-src '    . implode(' ', array_unique($script_src)),
@@ -188,6 +191,7 @@ add_action('send_headers', function() {
         'img-src '       . implode(' ', array_unique($img_src)),
         'font-src '      . implode(' ', array_unique($font_src)),
         'connect-src '   . implode(' ', array_unique($connect_src)),
+        ...($worker_src ? ['worker-src ' . implode(' ', array_unique($worker_src))] : []),
         "frame-ancestors 'self'",
         "base-uri 'self'",
         "form-action 'self'",
