@@ -5,15 +5,16 @@ if (!defined('ABSPATH')) exit;
 function gtemplate_enqueue_parent_assets() {
     $theme_uri = get_template_directory_uri();
     $version = GTEMPLATE_VERSION;
+    $css_ver = static fn(string $file) => (string) (@filemtime(get_template_directory() . '/assets/css/' . $file) ?: $version);
 
     // Golden Typography System (shared across all child themes)
-    wp_enqueue_style('gtemplate-golden-typography', $theme_uri . '/assets/css/golden-typography.css', [], $version);
+    wp_enqueue_style('gtemplate-golden-typography', $theme_uri . '/assets/css/golden-typography.css', [], $css_ver('golden-typography.css'));
 
     // Geodineum content system — the .geo page-content vocabulary
-    wp_enqueue_style('gtemplate-geodineum-content', $theme_uri . '/assets/css/geodineum-content.css', ['gtemplate-golden-typography'], $version);
+    wp_enqueue_style('gtemplate-geodineum-content', $theme_uri . '/assets/css/geodineum-content.css', ['gtemplate-golden-typography'], $css_ver('geodineum-content.css'));
 
     // Self-hosted fonts (Ubuntu, Rubik)
-    wp_enqueue_style('gtemplate-fonts', $theme_uri . '/assets/css/fonts.css', [], $version);
+    wp_enqueue_style('gtemplate-fonts', $theme_uri . '/assets/css/fonts.css', [], $css_ver('fonts.css'));
 
     // Allow child themes to enqueue their geometry CSS
     $child_styles = apply_filters('gtemplate_styles', []);

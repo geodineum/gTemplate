@@ -212,10 +212,7 @@ function gtemplate_rest_render_all_faces($request) {
                 'content' => gtemplate_get_face_content($i),
             ];
 
-            $html = null;
-            if ($gNode) {
-                $html = $gNode->renderTemplate($template_id, $template_data);
-            }
+            $html = $gNode ? gtemplate_gnode_render($gNode, $template_id, $template_data) : null;
 
             if (empty($html)) {
                 $html = gtemplate_render_face($i, array_merge([

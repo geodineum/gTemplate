@@ -42,7 +42,7 @@ function gtemplate_render_face($face_id, $data = []) {
     // TIER 2: gNode key-based
     try {
         $gNode = gtemplate_gnode_keybased();
-        if ($gNode) {
+        if ($gNode && !gtemplate_gnode_render_unanswered()) {
             $theme_prefix = gtemplate_get_theme_prefix();
             $default_templates = [];
             for ($i = 0; $i < gtemplate_get_face_count(); $i++) {
@@ -61,7 +61,7 @@ function gtemplate_render_face($face_id, $data = []) {
                 'blog_description' => get_bloginfo('description'),
             ], $data);
 
-            $html = $gNode->renderTemplate($template_id, $template_data);
+            $html = gtemplate_gnode_render($gNode, $template_id, $template_data);
             if ($html && !empty($html)) {
                 if (GTEMPLATE_DEBUG) {
                     gtemplate_track_error("gTemplate: Face {$face_id} rendered via KEY-BASED");
@@ -78,6 +78,37 @@ function gtemplate_render_face($face_id, $data = []) {
         gtemplate_track_error("gTemplate: Face {$face_id} rendered via PHP FALLBACK");
     }
     return gtemplate_render_face_fallback($face_id, $data['position'] ?? 'unknown');
+}
+
+/**
+ * Whether gNode recently left a template render unanswered.
+ */
+function gtemplate_gnode_render_unanswered(): bool {
+    return (bool) get_transient('gtemplate_gnode_render_unanswered');
+}
+
+/**
+ * Render a template through gNode. A call that times out (no template renderer
+ * answers) turns tier 2 off for ten minutes, so visitors get the PHP render
+ * instead of waiting on every face.
+ *
+ * @return string|null Rendered HTML, or null when gNode gave none
+ */
+function gtemplate_gnode_render($gNode, string $template_id, array $data): ?string {
+    if (gtemplate_gnode_render_unanswered()) {
+        return null;
+    }
+    $started = microtime(true);
+    try {
+        $html = $gNode->renderTemplate($template_id, $data);
+        return $html !== '' ? $html : null;
+    } catch (\Throwable $e) {
+        if (microtime(true) - $started >= 1.0) {
+            set_transient('gtemplate_gnode_render_unanswered', 1, 600);
+        }
+        gtemplate_track_error("gTemplate: gNode render of {$template_id} failed: " . $e->getMessage());
+        return null;
+    }
 }
 
 /**
