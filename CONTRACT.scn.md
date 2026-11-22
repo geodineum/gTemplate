@@ -10,7 +10,7 @@ WordPress parent theme = web-tier producer in the Geodineum ecosystem. gNode = S
 
 - COMMS stream key: `{site_id}:gnode:comms:{environment}` (literal braces = hash-tag) · `forms.php:292`
 - Forms capture key: `{site_id}:forms:{form_id}` (literal braces; `form_id` sanitized `[a-z0-9_-]`, default `default`) · `forms.php:145`
-- Config key: `{site_id}:config:registration` (ValKey GET, JSON) · `inc/registration.php:85`
+- Config key: `{site_id}:config:registration` (ValKey GET, JSON; `_source_mtime` = the YAML's file time, a copy with another time is not used) · `inc/registration.php:85`
 - REST (PRIMARY form-producer surface; NOT exhaustive — ~35 routes total, full table in code `inc/rest/**`+`inc/integrations/**`): `POST /wp-json/{namespace}/contact/submit` · `forms.php:28-56, 182-417` | `GET /wp-json/{namespace}/csrf-token` · `forms.php:59-63, 427-435` | `POST /wp-json/{namespace}/form/submit` ([gform]) · `forms.php:66-70, 83-169`
 - REST public frontend (verified): `POST /ai/chat` public(`__return_true`, per-IP RL in handler) · `shortcode.php:466-469` | `POST /ai/generate` cap-gated(`edit_posts`) · `shortcode.php:488-491` | `POST /render` public · `render.php:35-38` | `GET /render-all` public · `render.php:29-32` | `GET /page/{id}` public · `pages.php:26-29` | `GET /post/{id}` + `GET /bundle/post/{id}` public · `posts.php:28-31, 42-45` | `GET /template/{name}` public · `shortcode.php:442-445` | `/cookie-consent` GET public / POST nonce(`gtemplate_rest_verify_nonce`) · `cookie.php:340-356` | `/language` GET public / POST nonce · `translate.php:308-341`
 - COMMS XADD fields: `id,type,timestamp,site_id,environment,priority,sender,content,metadata,dispatch` (scalar + json_encode'd) · `forms.php:299-330`

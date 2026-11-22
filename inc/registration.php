@@ -102,6 +102,13 @@ function load_config_from_valkey(string $site_id): ?array
             return null;
         }
 
+        // A copy made before the file last changed is stale (a hand edit, a key fixed in the file).
+        $mtime = (int) @filemtime(ABSPATH . 'wp-config-geodineum.yaml');
+        if ($mtime > 0 && (int) ($config['_source_mtime'] ?? 0) !== $mtime) {
+            return null;
+        }
+        unset($config['_source_mtime']);
+
         if (defined('GTEMPLATE_DEBUG') && GTEMPLATE_DEBUG) { gtemplate_track_error("gTemplate Registration: Loaded config from ValKey via gCore (site_id: {$site_id})"); }
         return $config;
 
@@ -311,7 +318,7 @@ function sync_config_to_valkey(array $config): bool
         $gNodeClient->setex(
             "{{$site_id}}:config:registration",
             $ttl,
-            json_encode($config)
+            json_encode($config + ['_source_mtime' => (int) @filemtime(ABSPATH . 'wp-config-geodineum.yaml')])
         );
 
         // Store version hash

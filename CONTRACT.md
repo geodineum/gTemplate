@@ -163,7 +163,7 @@ Consumers must tolerate producer-side `XTRIM ~5000` retention and the rate-limit
 
 ### 4.4 Registration config key
 
-**Key:** `{site_id}:config:registration` (ValKey GET). **Content:** JSON-encoded registration config — `version, site_id, service, capabilities (axis words), metadata, valkey`. **Source:** `inc/registration.php:85-86, 314-318`.
+**Key:** `{site_id}:config:registration` (ValKey GET). **Content:** JSON-encoded registration config — `version, site_id, service, capabilities (axis words), metadata, valkey`, and `_source_mtime` (the file time of `wp-config-geodineum.yaml` it was read from; a copy whose time differs from the file's is not used, so an edit to the file takes effect on the next request). **Source:** `inc/registration.php:85-86, 314-318`.
 
 ### 4.5 Filter registry
 
