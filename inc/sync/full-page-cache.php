@@ -307,6 +307,22 @@ function gtemplate_start_page_cache_buffer(): void {
 add_action('template_redirect', 'gtemplate_start_page_cache_buffer', 2);
 
 /**
+ * The security headers of this render (CSP, HSTS), for a cached copy served before WordPress loads.
+ *
+ * @return string[]
+ */
+function gtemplate_page_cache_security_headers(): array {
+    $keep = [];
+    foreach (headers_list() as $line) {
+        $name = strtolower(trim((string) strtok($line, ':')));
+        if (in_array($name, ['content-security-policy', 'strict-transport-security'], true)) {
+            $keep[] = $line;
+        }
+    }
+    return $keep;
+}
+
+/**
  * Output buffer callback - cache the rendered HTML
  *
  * @param string $buffer The output buffer
@@ -338,12 +354,8 @@ function gtemplate_page_cache_callback(string $buffer): string {
         $cache_marker = "\n<!-- Cached by gTemplate @ " . gmdate('Y-m-d H:i:s') . " UTC -->";
         $cached_html = str_replace('</html>', $cache_marker . "\n</html>", $buffer);
 
-        // Commit 1.11.a: drop the `headers` field from the
-        // cache payload entirely (was always `[]` by code path but the
-        // serve-side replayed any headers it found, making future
-        // expansion of the field a hidden footgun) + HMAC the payload
-        // on write so the read side can verify it has not been
-        // tampered with.
+        // HMAC on write so the read side can verify the payload; the only headers kept are the allowlisted
+        // security headers, which gCore's early cache replays (that path also takes only those names).
         $cached_at = time();
         $cache_url = $_SERVER['REQUEST_URI'] ?? '/';
         $cache_data = [
@@ -351,6 +363,8 @@ function gtemplate_page_cache_callback(string $buffer): string {
             'cached_at' => $cached_at,
             'url' => $cache_url,
             'hmac' => gtemplate_page_cache_hmac($cached_html, $cached_at, $cache_url),
+            // gCore's early cache answers before WordPress sends its own: it replays these, and only these.
+            'headers' => gtemplate_page_cache_security_headers(),
         ];
 
         $json = json_encode($cache_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
